@@ -146,7 +146,7 @@ const CONFIG = {
     endpoint: "/.netlify/functions/translate",
     sttEndpoint: "/.netlify/functions/stt",
     timeoutMs: 5000,
-    sttTimeoutMs: 6000,
+    sttTimeoutMs: 9000,
   },
 
   // Caption engine: "auto" tries the phone's speech recognition and falls back to the
@@ -626,11 +626,15 @@ function pttUp() {
    ===================================================================== */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
+// Every iOS browser (Safari, Chrome, …) is WebKit; iPads can report as a Mac.
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
 function currentEngine() {
   if (S.sttMode === "off" || S.listenOnly) return "off";
   if (S.sttMode === "browser") return SR ? "browser" : "off";
   if (S.sttMode === "server") return window.MediaRecorder ? "server" : "off";
-  if (SR && !S.sttConflict) return "browser";
+  // iPhones go straight to server captions so Apple's recognizer never competes with the radio mic.
+  if (SR && !S.sttConflict && !IS_IOS) return "browser";
   return window.MediaRecorder ? "server" : "off";
 }
 

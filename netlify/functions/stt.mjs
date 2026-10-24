@@ -1,13 +1,25 @@
-// stt.mjs — server speech-to-text fallback, used when the phone's built-in
-// SpeechRecognition is missing or fights WebRTC for the mic.
+// stt.mjs — server speech-to-text. iPhones always use this (their built-in recognizer can
+// fight the radio for the mic); other phones fall back to it if their recognizer is missing
+// or conflicts.
 // POST { id, lang, mime, audio: <base64> }  →  { id, text }
 //
-// TODO(Jake): pick a provider and fill in transcribe(). Until then this returns
-// an empty transcript, and the radio shows "no caption" (voice still works).
+// Uses OpenAI transcription through Netlify AI Gateway: Netlify injects OPENAI_API_KEY and
+// OPENAI_BASE_URL at runtime, so there is no OpenAI account or key to manage.
 // Never log or store the audio or the transcript.
 // No sign-in, so this endpoint is public: other websites are refused and Netlify rate-limits each IP.
 
+import OpenAI, { toFile } from "openai";
+
+const MODEL = "gpt-4o-mini-transcribe";
 const MAX_AUDIO_B64 = 4_000_000; // ~3 MB of audio, well under the 6 MB function limit
+
+// Vocabulary hint so jobsite words and numbers come out right.
+const PROMPT =
+  "Two-way radio on an asphalt paving crew. Words like paver, roller, tack, milling machine, " +
+  "flagger, haul truck, lane closure, shoulder, cones, the mat, tons, station 12+50, truck 12. " +
+  "Spanish may include troca, la pavimentadora, el rodillo, el banderero, toneladas.";
+
+const EXT = { "audio/mp4": "m4a", "audio/aac": "m4a", "audio/webm": "webm", "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/wav": "wav" };
 
 function reply(status, body) {
   return new Response(JSON.stringify(body), {
@@ -26,11 +38,6 @@ function sameSite(req) {
   }
 }
 
-// Return the transcript string for the clip. Provider key goes in a Netlify env var.
-async function transcribe(/* audioBytes, mime, lang */) {
-  return "";
-}
-
 export default async (req) => {
   if (req.method !== "POST") return reply(405, { error: "method_not_allowed" });
   if (!sameSite(req)) return reply(403, { error: "forbidden" });
@@ -43,18 +50,29 @@ export default async (req) => {
   }
 
   const id = typeof body.id === "string" ? body.id.slice(0, 64) : "";
-  const lang = typeof body.lang === "string" ? body.lang.slice(0, 16) : "";
-  const mime = typeof body.mime === "string" ? body.mime.slice(0, 64) : "audio/webm";
+  const lang = typeof body.lang === "string" ? body.lang.slice(0, 2).toLowerCase() : "";
+  const mime = (typeof body.mime === "string" ? body.mime : "audio/webm").split(";")[0].trim().toLowerCase();
   if (typeof body.audio !== "string" || !body.audio || body.audio.length > MAX_AUDIO_B64) {
     return reply(400, { id, error: "bad_audio", text: "" });
   }
+  if (!process.env.OPENAI_API_KEY) return reply(503, { id, error: "not_configured", text: "" });
 
   try {
-    const text = await transcribe(Buffer.from(body.audio, "base64"), mime, lang);
-    return reply(200, { id, text: (text || "").trim(), provider: "stub" });
+    const client = new OpenAI({ timeout: 8000, maxRetries: 0 }); // key + base URL injected by Netlify
+    const file = await toFile(Buffer.from(body.audio, "base64"), `clip.${EXT[mime] || "webm"}`, { type: mime });
+    const result = await client.audio.transcriptions.create({
+      file,
+      model: MODEL,
+      ...(lang === "en" || lang === "es" ? { language: lang } : {}),
+      prompt: PROMPT,
+      response_format: "json",
+    });
+    return reply(200, { id, text: (result.text || "").trim().slice(0, 600) });
   } catch (err) {
-    console.error("stt failed", err?.name);
-    return reply(502, { id, error: "upstream", text: "" });
+    // Log only the error class/status — never the audio or transcript.
+    const status = err instanceof OpenAI.APIError ? err.status : undefined;
+    console.error("stt failed", err?.name, status ?? "");
+    return reply(502, { id, error: "upstream", upstreamStatus: status ?? null, text: "" });
   }
 };
 
