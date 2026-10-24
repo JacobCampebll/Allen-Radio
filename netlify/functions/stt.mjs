@@ -72,7 +72,8 @@ export default async (req) => {
     // Log only the error class/status — never the audio or transcript.
     const status = err instanceof OpenAI.APIError ? err.status : undefined;
     console.error("stt failed", err?.name, status ?? "");
-    return reply(502, { id, error: "upstream", upstreamStatus: status ?? null, text: "" });
+    const reason = err instanceof OpenAI.APIError ? String(err.message || "").slice(0, 200) : "";
+    return reply(502, { id, error: "upstream", upstreamStatus: status ?? null, reason, text: "" });
   }
 };
 
