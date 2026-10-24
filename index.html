@@ -152,6 +152,7 @@ const CONFIG = {
   // Caption engine: "auto" tries the phone's speech recognition and falls back to the
   // server (stt function) if it is missing or conflicts with the radio mic.
   sttDefault: "auto",
+  iosServerCaptions: false,
 
   // English and Spanish only. Spanish is neutral Latin American (crews from Mexico, Guatemala, Honduras).
   languages: [
@@ -633,8 +634,8 @@ function currentEngine() {
   if (S.sttMode === "off" || S.listenOnly) return "off";
   if (S.sttMode === "browser") return SR ? "browser" : "off";
   if (S.sttMode === "server") return window.MediaRecorder ? "server" : "off";
-  // iPhones go straight to server captions so Apple's recognizer never competes with the radio mic.
-  if (SR && !S.sttConflict && !IS_IOS) return "browser";
+  // Set true once server captions work: iPhones then skip Apple's recognizer entirely.
+  if (SR && !S.sttConflict && !(IS_IOS && CONFIG.iosServerCaptions)) return "browser";
   return window.MediaRecorder ? "server" : "off";
 }
 
