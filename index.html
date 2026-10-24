@@ -164,7 +164,7 @@ const CONFIG = {
   // Caption engine: "auto" tries the phone's speech recognition and falls back to the
   // server (stt function) if it is missing or conflicts with the radio mic.
   sttDefault: "auto",
-  iosServerCaptions: false,
+  iosServerCaptions: true,
 
   // English and Spanish only. Spanish is neutral Latin American (crews from Mexico, Guatemala, Honduras).
   languages: [
@@ -635,6 +635,7 @@ function pttUp() {
   renderRoster();
   pumpSpeech();
   const releasedAt = performance.now();
+  if (S.capture && S.capture.engine === "server") setCaption({ who: "You", main: "…", sub: "Transcribing… / Transcribiendo…" });
   stopCapture().then((text) => sendTranscript(text, releasedAt)).catch(() => {});
 }
 

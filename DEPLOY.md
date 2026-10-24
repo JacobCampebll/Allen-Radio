@@ -9,7 +9,7 @@ C:\Users\<you>\Projects\allen-field-radio\
 ├─ netlify.toml
 ├─ package.json                      pulls in the Anthropic SDK for the function
 ├─ netlify\functions\translate.mjs   one translation call per transmission (model, prompt, glossary live here)
-└─ netlify\functions\stt.mjs         server speech-to-text fallback (STUB, see TODO)
+└─ netlify\functions\stt.mjs         server speech-to-text with Google Gemini (all iPhones use it)
 ```
 
 ## How it works now
@@ -35,7 +35,8 @@ Go to Netlify → **allen-field-radio** → Site configuration → Environment v
 
 | Name | Value |
 |---|---|
-| `ANTHROPIC_API_KEY` | Your Anthropic key. It lives here only and never goes in the HTML. |
+| `ANTHROPIC_API_KEY` | Your Anthropic key, for translations. If it's missing, Netlify's built-in AI Gateway key is used and billed to Netlify credits. |
+| `GEMINI_API_KEY` | Your Google Gemini key, for server captions (speech to text). Required: Netlify's gateway key doesn't work for this. |
 
 Redeploy after you change it.
 
@@ -82,12 +83,12 @@ The page shows a small gray line at the very bottom with the caption engine and 
 
 **How to tell whether STT conflicted:** In Auto mode, the app watches the radio mic while the phone's speech recognition runs. If the mic track dies, or goes silent while recognition still hears words, the app shows a toast ("can't caption and transmit at once"), switches that phone to server captions, and the diag line reads "phone STT conflicted with mic → server". Also confirm by ear on the other phone: does the voice still come through while captions work?
 
-**If iPhone conflicts:** server captions need a real provider in `stt.mjs` (see the TODO). Until you add one, a conflicting phone transmits voice normally but sends "no caption". 
+**iPhones** always use server captions (Google Gemini, `stt.mjs`), so Apple's recognizer never competes with the radio mic. Expect a few seconds' wait for the caption; the card shows "Transcribing…" meanwhile.
 ## 5. Before crews rely on it
 
 - [ ] A bilingual crew member reviews the `GLOSSARY` in `translate.mjs`, and you set `verified: true`.
 - [ ] Before turning on `showPresets`, the same review for every preset's Spanish line in `CONFIG.presets`.
-- [ ] Pick an STT provider for `stt.mjs` if any phone conflicts.
+- [ ] Move the Gemini key off the free tier (turn on billing in Google AI Studio): free keys get lowest priority when Google is busy, and Google may use free-tier data to improve its products.
 
 ## Privacy
 
