@@ -59,7 +59,8 @@ export default async (req) => {
   if (!process.env.OPENAI_API_KEY) return reply(503, { id, error: "not_configured", text: "" });
 
   try {
-    const client = new OpenAI({ timeout: 8000, maxRetries: 0 }); // reads OPENAI_API_KEY
+    // Go straight to OpenAI: Netlify AI Gateway can also inject OPENAI_BASE_URL, and it rejects uploads.
+    const client = new OpenAI({ baseURL: "https://api.openai.com/v1", timeout: 8000, maxRetries: 0 });
     const file = await toFile(Buffer.from(body.audio, "base64"), `clip.${EXT[mime] || "webm"}`, { type: mime });
     const result = await client.audio.transcriptions.create({
       file,
