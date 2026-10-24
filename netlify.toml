@@ -22,3 +22,14 @@
   for = "/*"
   [headers.values]
     Permissions-Policy = "microphone=(self)"
+
+# Make phones always re-check the cleanup scripts instead of using a saved copy.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/service-worker.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"

@@ -877,6 +877,10 @@ $("talk").addEventListener("click", talkTap);
 const typing = (e) => /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName);
 document.addEventListener("keydown", (e) => { if (e.code === "Space" && !e.repeat && !typing(e) && S.joined) { e.preventDefault(); talkTap(); } });
 
+// Remove any service worker or cache left by the old V3.5 radio at this address.
+if (navigator.serviceWorker) navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister())).catch(() => {});
+if (window.caches) caches.keys().then((ks) => ks.forEach((k) => caches.delete(k))).catch(() => {});
+
 $("joinName").value = S.name;
 renderLangButtons();
 renderPresets();
