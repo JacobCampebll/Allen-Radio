@@ -9,7 +9,14 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-const MODEL = "gemini-3.8-flash";
+// Tried in order. Lite models are fastest for plain transcription; a busy (503), retired (404)
+// or rejected (400) model falls through to the next one while time remains.
+const MODELS = [
+  { name: "gemini-3.5-flash-lite" },
+  { name: "gemini-flash-lite-latest" },
+  { name: "gemini-3.8-flash", thinkingConfig: { thinkingLevel: "LOW" } },
+];
+const BUDGET_MS = 8500; // the page waits 9 s
 const MAX_AUDIO_B64 = 4_000_000; // ~3 MB of audio, well under the 6 MB function limit
 const LANG_NAMES = { en: "English", es: "Spanish" };
 
@@ -56,22 +63,30 @@ export default async (req) => {
   }
   if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_API_KEY) return reply(503, { id, error: "not_configured", text: "" });
 
-  try {
-    // Google rejects deadlines under 10 s, so cut the call off ourselves (the page waits 9 s).
-    const ai = new GoogleGenAI({ httpOptions: { baseUrl: "https://generativelanguage.googleapis.com" } });
-    const res = await ai.models.generateContent({
-      model: MODEL,
-      contents: [{ role: "user", parts: [{ inlineData: { mimeType: mime, data: body.audio } }, { text: instructions(lang) }] }],
-      config: { temperature: 0, maxOutputTokens: 400, thinkingConfig: { thinkingLevel: "LOW" }, abortSignal: AbortSignal.timeout(8500) },
-    });
-    const text = (res.text || "").replace(/^["'“”]+|["'“”]+$/g, "").trim().slice(0, 600);
-    return reply(200, { id, text });
-  } catch (err) {
-    // Log only the error class/status — never the audio or transcript.
-    const status = typeof err?.status === "number" ? err.status : undefined;
-    console.error("stt failed", err?.name, status ?? "");
-    return reply(502, { id, error: "upstream", upstreamStatus: status ?? null, reason: String(err?.message || "").slice(0, 200), text: "" });
+  // Google rejects deadlines under 10 s, so cut calls off ourselves.
+  const ai = new GoogleGenAI({ httpOptions: { baseUrl: "https://generativelanguage.googleapis.com" } });
+  const deadline = Date.now() + BUDGET_MS;
+  let last;
+  for (const m of MODELS) {
+    const left = deadline - Date.now();
+    if (left < 1500) break;
+    try {
+      const res = await ai.models.generateContent({
+        model: m.name,
+        contents: [{ role: "user", parts: [{ inlineData: { mimeType: mime, data: body.audio } }, { text: instructions(lang) }] }],
+        config: { temperature: 0, maxOutputTokens: 400, ...(m.thinkingConfig ? { thinkingConfig: m.thinkingConfig } : {}), abortSignal: AbortSignal.timeout(left) },
+      });
+      const text = (res.text || "").replace(/^["'“”]+|["'“”]+$/g, "").trim().slice(0, 600);
+      return reply(200, { id, text, model: m.name });
+    } catch (err) {
+      last = err;
+      if (![400, 404, 429, 500, 503].includes(err?.status)) break; // timeouts and auth errors won't improve
+    }
   }
+  // Log only the error class/status — never the audio or transcript.
+  const status = typeof last?.status === "number" ? last.status : undefined;
+  console.error("stt failed", last?.name, status ?? "");
+  return reply(502, { id, error: "upstream", upstreamStatus: status ?? null, reason: String(last?.message || "").slice(0, 200), text: "" });
 };
 
 export const config = {
