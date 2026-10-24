@@ -2,8 +2,8 @@
 // the mic) and by any phone whose built-in recognizer is missing or conflicts.
 // POST { id, lang, mime, audio: <base64> }  →  { id, text }
 //
-// Uses Google Gemini. The SDK reads GEMINI_API_KEY (your own key, set in Netlify env vars);
-// until that is set, Netlify AI Gateway injects a key and base URL so it still works.
+// Uses Google Gemini with your own GEMINI_API_KEY (Netlify env vars). Requests go straight to
+// Google: Netlify AI Gateway may still inject GOOGLE_GEMINI_BASE_URL, and it rejects outside keys.
 // Never log or store the audio or the transcript.
 // No sign-in, so this endpoint is public: other websites are refused and Netlify rate-limits each IP.
 
@@ -57,7 +57,7 @@ export default async (req) => {
   if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_API_KEY) return reply(503, { id, error: "not_configured", text: "" });
 
   try {
-    const ai = new GoogleGenAI({ httpOptions: { timeout: 8000 } });
+    const ai = new GoogleGenAI({ httpOptions: { baseUrl: "https://generativelanguage.googleapis.com", timeout: 8000 } });
     const res = await ai.models.generateContent({
       model: MODEL,
       contents: [{ role: "user", parts: [{ inlineData: { mimeType: mime, data: body.audio } }, { text: instructions(lang) }] }],
