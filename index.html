@@ -6,127 +6,224 @@
 <meta name="theme-color" content="#16181b">
 <title>Allen Field Radio</title>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Semi+Condensed:wght@500;600;700;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #f3f4f6; --card: #ffffff; --ink: #111418; --muted: #5f6873; --line: #dfe3e8;
-    --bar: #16181b; --orange: #ff6a13; --orange-dk: #c94d05; --red: #d0021b; --green: #1f9d4a;
+    --page: #0b0c0e; --edge: #050607;
+    --metal-hi: #2c3036; --metal: #1f2226; --metal-lo: #16181b;
+    --lcd: #0c0f11; --lcd-ink: #e3e7ea; --lcd-dim: #7f8992; --lcd-line: #2a3036;
+    --pad: #8a6b52; --pad-lo: #6e5440; --pad-ink: #2b1f15;
+    --green: #3ddc6a; --red: #ff3b30; --amber: #ffb020; --orange: #ff6a13;
+    --label: #8d959e;
+    --mono: "Share Tech Mono", ui-monospace, monospace;
+    --cond: "Saira Semi Condensed", system-ui, sans-serif;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; background: var(--bg); color: var(--ink);
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  html, body { margin: 0; color: var(--lcd-ink); font-family: var(--cond); background-color: var(--page);
+    background-image: repeating-linear-gradient(0deg, transparent 0 23px, rgba(255,255,255,.025) 23px 24px),
+                      repeating-linear-gradient(90deg, transparent 0 23px, rgba(255,255,255,.025) 23px 24px); }
+  body { min-height: 100dvh; display: flex; justify-content: center; padding: 18px 10px 28px; }
   .hidden { display: none !important; }
-  button { font: inherit; cursor: pointer; }
+  button { font: inherit; cursor: pointer; color: inherit; }
 
-  .top { background: var(--bar); padding: 14px 16px calc(14px) ; padding-top: max(14px, env(safe-area-inset-top));
-    display: flex; justify-content: center; }
-  .top img { width: min(260px, 70vw); height: auto; display: block; }
-  .wrap { max-width: 480px; margin: 0 auto; padding: 16px 16px 32px; }
+  /* ---------- Chassis ---------- */
+  .radio { width: 100%; max-width: 460px; position: relative; padding-top: 26px; }
+  .antenna { position: absolute; top: 0; left: 64px; width: 16px; height: 46px; border-radius: 6px 6px 2px 2px;
+    background: repeating-linear-gradient(0deg, #0d0e10 0 3px, #2a2d32 3px 6px); box-shadow: 0 0 0 2px #0a0b0c; }
+  .chassis { position: relative; border-radius: 26px; padding: 16px 20px 14px; border: 2px solid var(--edge);
+    background: linear-gradient(180deg, var(--metal-hi), var(--metal) 18%, var(--metal-lo));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08), inset 0 -2px 0 rgba(0,0,0,.5), 0 24px 50px rgba(0,0,0,.7); }
+  .bumper { position: absolute; width: 58px; height: 58px; background:
+      repeating-linear-gradient(135deg, #1a1c1f 0 4px, #2c2f34 4px 7px); border: 2px solid var(--edge); }
+  .bumper.tl { top: -8px; left: -8px; border-radius: 26px 0 30px 0; }
+  .bumper.tr { top: -8px; right: -8px; border-radius: 0 26px 0 30px; }
+  .bumper.bl { bottom: -8px; left: -8px; border-radius: 0 30px 0 26px; }
+  .bumper.br { bottom: -8px; right: -8px; border-radius: 30px 0 26px 0; }
+  .grip { position: absolute; top: 160px; bottom: 120px; width: 8px;
+    background: repeating-linear-gradient(0deg, #0c0d0f 0 6px, #2a2d32 6px 12px); border-radius: 3px; }
+  .grip.l { left: -6px; } .grip.r { right: -6px; }
 
-  /* Join */
-  h1 { font-size: 22px; margin: 4px 0 16px; text-align: center; }
-  label.field { display: block; font-weight: 700; font-size: 15px; margin: 16px 0 6px; }
-  input.name { width: 100%; padding: 14px; font-size: 20px; border: 2px solid var(--line); border-radius: 12px; background: var(--card); }
-  .langs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .lang { padding: 20px 8px; border-radius: 12px; border: 2px solid var(--line); background: var(--card); font-size: 16px; font-weight: 700; color: var(--ink); }
-  .lang.on { border-color: var(--orange); background: #fff1e8; }
-  .bigbtn { width: 100%; margin-top: 22px; padding: 18px; font-size: 20px; font-weight: 800; border: 0; border-radius: 14px;
-    background: var(--orange); color: #1a0d03; }
-  .err { color: var(--red); font-size: 15px; min-height: 20px; margin-top: 8px; text-align: center; }
+  .plate { position: relative; display: flex; justify-content: center; align-items: center; padding: 14px 0 12px;
+    margin: 0 18px; border-radius: 12px; background: linear-gradient(180deg, #24272c, #1b1d21);
+    box-shadow: inset 0 2px 4px rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.05); }
+  .plate img { width: min(180px, 46vw); height: auto; opacity: .92; }
+  .led-wrap { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); text-align: center;
+    font: 700 9px var(--cond); letter-spacing: .2em; color: var(--label); }
+  .led { display: block; margin: 0 auto 4px; width: 16px; height: 16px; border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #2b2f34, #0d0f11); box-shadow: inset 0 1px 3px #000, 0 0 0 2px #121417; }
+  .led.rx { background: radial-gradient(circle at 40% 35%, #9dffb8, var(--green)); box-shadow: 0 0 12px var(--green), 0 0 0 2px #121417; }
+  .led.tx { background: radial-gradient(circle at 40% 35%, #ffb3ad, var(--red)); box-shadow: 0 0 12px var(--red), 0 0 0 2px #121417; }
 
-  /* Radio */
-  .roster { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; }
-  .roster-head { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: var(--muted); }
-  .roster-head .count { color: var(--ink); }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: var(--bg);
-    border: 1px solid var(--line); font-size: 15px; font-weight: 700; }
-  .chip .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--green); }
-  .chip .lg { font-size: 11px; font-weight: 800; color: var(--muted); }
-  .chip.me { border-color: var(--orange); }
-  .chip.live { background: #e3f7ea; border-color: var(--green); }
-  .chip.live .dot { animation: pulse .8s ease-in-out infinite alternate; }
-  @keyframes pulse { to { transform: scale(1.6); } }
-  .alone { font-size: 14px; color: var(--muted); margin-top: 6px; }
-  .talk-wrap { display: flex; justify-content: center; margin: 18px 0; }
-  .talk { width: 210px; height: 210px; border-radius: 50%; border: 0; color: #1a0d03; font-weight: 900; font-size: 26px; line-height: 1.15;
-    background: radial-gradient(circle at 35% 30%, #ff9a55, var(--orange) 50%, var(--orange-dk));
-    box-shadow: 0 8px 0 #8a3503, 0 14px 26px rgba(0,0,0,.25); user-select: none; -webkit-user-select: none; touch-action: manipulation; }
-  .talk small { display: block; font-size: 14px; font-weight: 700; opacity: .8; margin-top: 4px; }
-  .talk.on { background: radial-gradient(circle at 35% 30%, #ff6b6b, var(--red) 55%, #8f0010); color: #fff;
-    box-shadow: 0 3px 0 #5c000a, 0 0 0 10px rgba(208,2,27,.18); transform: translateY(5px); }
-  .talk:disabled { filter: grayscale(1); opacity: .55; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-height: 120px; }
-  .card.flash { animation: flash .35s steps(1) 5; }
-  @keyframes flash { 0% { background: var(--red); color: #fff; } 50% { background: var(--card); color: var(--ink); } }
-  .cap-who { font-size: 13px; color: var(--muted); font-weight: 700; }
-  .cap-main { font-size: 26px; font-weight: 800; line-height: 1.25; margin-top: 4px; word-wrap: break-word; }
-  .cap-sub { font-size: 15px; color: var(--muted); margin-top: 8px; word-wrap: break-word; }
-  .cap-empty { color: var(--muted); font-size: 16px; text-align: center; padding-top: 30px; }
-  .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 6px; background: #ffe7a3; color: #5a4300; margin-left: 6px; }
-  .history { margin-top: 14px; }
-  .item { border-top: 1px solid var(--line); padding: 10px 2px; }
-  .item .t { font-size: 12px; color: var(--muted); }
-  .item .m { font-size: 17px; font-weight: 700; margin-top: 2px; }
-  .item .s { font-size: 14px; color: var(--muted); }
-  .item.alarm .m { color: var(--red); }
+  .grille { height: 64px; margin: 16px 2px; border-radius: 14px; background-color: #0a0b0d;
+    background-image: radial-gradient(circle, #000 0 2.6px, transparent 3px);
+    background-size: 12px 12px; background-position: 4px 4px;
+    box-shadow: inset 0 3px 8px rgba(0,0,0,.9), 0 1px 0 rgba(255,255,255,.05); }
 
-  .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
-  .preset { position: relative; min-height: 56px; border-radius: 12px; border: 0; color: #fff; font-weight: 900; font-size: 16px; }
+  /* ---------- LCD ---------- */
+  .lcd { position: relative; overflow: hidden; border-radius: 12px; padding: 14px 16px; background: var(--lcd);
+    border: 3px solid #08090a; box-shadow: inset 0 0 22px rgba(0,0,0,.9), 0 0 0 1px #2c3036; }
+  .lcd::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(115deg, transparent 38%, rgba(255,255,255,.035) 46%, transparent 56%); }
+  .lbl { font: 13px var(--mono); letter-spacing: .14em; color: var(--lcd-dim); text-transform: uppercase; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+
+  /* Join form */
+  .field { padding: 8px 0 10px; border-bottom: 1px dashed #4a525a; margin-bottom: 14px; }
+  .field .val { font: 24px var(--mono); letter-spacing: .08em; margin-top: 4px; text-transform: uppercase; }
+  input.name { width: 100%; margin-top: 4px; background: transparent; border: 0; outline: 0; padding: 0; color: var(--lcd-ink);
+    font: 24px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+  input.name::placeholder { color: #3f474e; }
+  .langs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .lang { padding: 12px 6px; border-radius: 8px; border: 1px solid #3a4148; background: #111518;
+    font: 18px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--lcd-dim); }
+  .lang.on { color: var(--lcd-ink); border-color: var(--lcd-ink); box-shadow: inset 0 0 12px rgba(255,255,255,.08); }
+  .lang.on::before { content: "▸ "; }
+  .power { width: 100%; margin-top: 6px; padding: 16px 10px; border-radius: 8px; border: 1px solid #8a939b; background: #12161a;
+    font: 19px var(--mono); letter-spacing: .14em; color: var(--lcd-ink); white-space: nowrap; }
+  .power:active { background: #1b2126; }
+  .err { font: 14px var(--mono); color: var(--amber); min-height: 18px; margin-top: 10px; }
+
+  /* Roster */
+  .chips { margin: 10px 0 2px; }
+  .chip { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; font: 20px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: #4b545c; flex: none; align-self: center; }
+  .chip .nm { flex: none; }
+  .chip .lead { flex: 1; border-bottom: 1px dotted #39414a; transform: translateY(-5px); }
+  .chip .lg { font-size: 15px; color: var(--lcd-dim); }
+  .chip.me .dot { background: var(--orange); }
+  .chip:not(.me) .dot { background: var(--green); }
+  .chip.live { color: var(--green); }
+  .chip.live .lg { color: var(--green); }
+  .chip.live .lg::after { content: " · TX"; animation: blink .7s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .alone { font: 14px var(--mono); color: var(--lcd-dim); margin-top: 4px; }
+
+  /* Caption */
+  .divider { border-top: 1px dashed #3d454d; margin: 12px 0; }
+  .card { min-height: 104px; }
+  .cap-empty { font: 15px var(--mono); color: #4d565e; text-align: center; padding: 26px 0 10px; letter-spacing: .06em; }
+  .cap-who { font: 13px var(--mono); letter-spacing: .14em; color: var(--lcd-dim); text-transform: uppercase; }
+  .cap-main { font: 600 27px/1.2 var(--cond); margin-top: 4px; color: #f4f6f7; word-wrap: break-word; }
+  .cap-sub { font: 15px var(--mono); color: var(--lcd-dim); margin-top: 8px; word-wrap: break-word; }
+  .badge { display: inline-block; font: 11px var(--mono); padding: 1px 6px; border-radius: 4px; background: var(--amber); color: #000; margin-left: 6px; }
+  .lcd.flash { animation: flash .35s steps(1) 5; }
+  @keyframes flash { 0% { background: #a1120a; } 50% { background: var(--lcd); } }
+
+  /* ---------- Talk pad ---------- */
+  .pad-bay { margin: 16px 0 12px; padding: 12px; border-radius: 16px; background: #121417; position: relative;
+    box-shadow: inset 0 3px 10px rgba(0,0,0,.85), 0 1px 0 rgba(255,255,255,.05); }
+  .screw { position: absolute; width: 11px; height: 11px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #555b62, #1c1f22);
+    box-shadow: inset 0 0 0 1px #0a0b0c; }
+  .screw::after { content: ""; position: absolute; left: 2px; right: 2px; top: 5px; height: 1px; background: #0a0b0c; transform: rotate(35deg); }
+  .screw.a { top: 7px; left: 7px; } .screw.b { top: 7px; right: 7px; } .screw.c { bottom: 7px; left: 7px; } .screw.d { bottom: 7px; right: 7px; }
+  .talk { width: 100%; min-height: 172px; border-radius: 12px; border: 2px solid #3a2b1f; user-select: none; -webkit-user-select: none;
+    touch-action: manipulation; color: var(--pad-ink); font: 800 50px var(--cond); letter-spacing: .28em; text-indent: .28em;
+    background-color: var(--pad);
+    background-image: repeating-linear-gradient(45deg, rgba(0,0,0,.09) 0 2px, transparent 2px 7px),
+                      repeating-linear-gradient(-45deg, rgba(0,0,0,.09) 0 2px, transparent 2px 7px),
+                      linear-gradient(180deg, rgba(255,255,255,.12), rgba(0,0,0,.18));
+    box-shadow: 0 6px 0 #3d2d20, inset 0 1px 0 rgba(255,255,255,.2); text-shadow: 0 1px 0 rgba(255,255,255,.25);
+    transition: transform .05s, box-shadow .05s; }
+  .talk small { display: block; font: 700 12px var(--cond); letter-spacing: .14em; text-indent: .14em; margin-top: 10px; opacity: .8; white-space: nowrap; }
+  .talk.on { background-color: #b3291b; color: #fff; text-shadow: 0 0 12px rgba(255,255,255,.45);
+    transform: translateY(5px); box-shadow: 0 1px 0 #3d2d20, 0 0 28px rgba(255,59,48,.55), inset 0 1px 0 rgba(255,255,255,.2); }
+  .talk:disabled { filter: grayscale(.8) brightness(.55); }
+
+  .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .preset { position: relative; min-height: 56px; border-radius: 10px; border: 2px solid #08090a; color: #fff; font: 800 16px var(--cond); letter-spacing: .08em; }
   .preset.wide { grid-column: span 2; }
-  .preset .dot { position: absolute; top: 6px; right: 8px; width: 9px; height: 9px; border-radius: 50%; background: #ffd400; }
+  .preset .dot { position: absolute; top: 6px; right: 8px; width: 9px; height: 9px; border-radius: 50%; background: var(--amber); }
 
-  .foot { margin-top: 20px; text-align: center; font-size: 14px; color: var(--muted); }
-  .foot label { display: inline-flex; gap: 8px; align-items: center; }
-  .foot input { width: 20px; height: 20px; accent-color: var(--orange); }
-  .linkbtn { background: none; border: 0; color: var(--muted); text-decoration: underline; padding: 8px; font-size: 14px; }
-  .fine { font-size: 12px; margin-top: 6px; }
-  .diag { font: 11px ui-monospace, monospace; color: #9aa1a9; margin-top: 6px; }
-  .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--bar); color: #fff;
-    border-radius: 10px; padding: 10px 14px; font-size: 14px; z-index: 30; max-width: 92vw; }
+  /* ---------- Log ---------- */
+  .history:empty { display: none; }
+  .history { padding: 8px 14px; max-height: 220px; overflow-y: auto; }
+  .history::before { content: "LOG"; display: block; font: 12px var(--mono); letter-spacing: .2em; color: var(--lcd-dim); margin: 2px 0 4px; }
+  .item { border-top: 1px dashed #2b3238; padding: 8px 0; }
+  .item .t { font: 12px var(--mono); color: var(--lcd-dim); letter-spacing: .08em; text-transform: uppercase; }
+  .item .m { font: 600 18px var(--cond); margin-top: 2px; }
+  .item .s { font: 13px var(--mono); color: var(--lcd-dim); }
+  .item.alarm .m { color: #ff7a70; }
+
+  /* ---------- Controls & plate ---------- */
+  .controls { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 14px; padding: 0 4px; }
+  .switch { display: flex; align-items: center; gap: 10px; font: 700 12px var(--cond); letter-spacing: .16em; color: var(--label); white-space: nowrap; }
+  .switch input { appearance: none; -webkit-appearance: none; width: 46px; height: 24px; border-radius: 12px; margin: 0; position: relative;
+    background: #0c0e10; box-shadow: inset 0 2px 4px #000, 0 0 0 1px #2e3338; cursor: pointer; }
+  .switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%;
+    background: linear-gradient(180deg, #6b727a, #3b4046); transition: left .15s; }
+  .switch input:checked { background: #10331c; }
+  .switch input:checked::after { left: 25px; background: linear-gradient(180deg, #8ef0a9, var(--green)); }
+  .linkbtn { background: none; border: 1px solid #353a40; border-radius: 8px; padding: 8px 10px; font: 700 12px var(--cond); letter-spacing: .14em; color: var(--label); white-space: nowrap; }
+  .fine { font: 11px var(--mono); color: #5d666e; text-align: center; margin-top: 14px; letter-spacing: .04em; }
+  .model { text-align: center; font: 700 11px var(--cond); letter-spacing: .22em; color: #4f565d; margin-top: 12px; white-space: nowrap; }
+  .diag { font: 10px var(--mono); color: #454c53; text-align: center; margin-top: 6px; }
+  .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: #000; color: var(--lcd-ink);
+    border: 1px solid #3a4148; border-radius: 10px; padding: 10px 14px; font: 14px var(--mono); z-index: 30; max-width: 92vw; }
 </style>
 </head>
 <body>
 
-<header class="top"><img src="allen-logo-white.png" alt="The Allen Company"></header>
+<div class="radio">
+  <div class="antenna"></div>
+  <div class="chassis">
+    <span class="bumper tl"></span><span class="bumper tr"></span><span class="bumper bl"></span><span class="bumper br"></span>
+    <span class="grip l"></span><span class="grip r"></span>
 
-<!-- ===================== JOIN ===================== -->
-<section id="joinView" class="wrap">
-  <h1>Field Radio</h1>
-  <label class="field" for="joinName">Your name / Su nombre</label>
-  <input class="name" id="joinName" maxlength="20" autocomplete="name" placeholder="Name">
-  <label class="field">Your language / Su idioma</label>
-  <div class="langs" id="langButtons"></div>
-  <button class="bigbtn" id="joinBtn">Start / Empezar</button>
-  <div class="err" id="joinErr"></div>
-</section>
+    <div class="plate">
+      <img src="allen-logo-white.png" alt="The Allen Company">
+      <div class="led-wrap"><i class="led" id="busyLed"></i>BUSY</div>
+    </div>
+    <div class="grille"></div>
 
-<!-- ===================== RADIO ===================== -->
-<main id="radioView" class="wrap hidden">
-  <div class="roster">
-    <div class="roster-head"><span id="rosterTitle">Connecting…</span><span class="count" id="rosterCount"></span></div>
-    <div class="chips" id="chips"></div>
-    <div class="alone hidden" id="alone">No one else on yet. / Nadie más conectado.</div>
-  </div>
+    <!-- ===================== JOIN ===================== -->
+    <section id="joinView">
+      <div class="lcd">
+        <div class="field"><div class="lbl">Channel</div><div class="val" id="joinChannel"></div></div>
+        <div class="field"><label class="lbl" for="joinName">Callsign / Nombre</label>
+          <input class="name" id="joinName" maxlength="20" autocomplete="name" placeholder="YOUR NAME"></div>
+        <div class="lbl">Language / Idioma</div>
+        <div class="langs" id="langButtons"></div>
+        <div style="height:16px"></div>
+        <button class="power" id="joinBtn">▶ POWER ON / JOIN</button>
+        <div class="err" id="joinErr"></div>
+      </div>
+    </section>
 
-  <div class="talk-wrap"><button class="talk" id="talk"></button></div>
+    <!-- ===================== RADIO ===================== -->
+    <main id="radioView" class="hidden">
+      <div class="lcd" id="card">
+        <div class="row"><span class="lbl" id="rosterTitle">Connecting…</span><span class="lbl" id="rosterCount"></span></div>
+        <div class="chips" id="chips"></div>
+        <div class="alone hidden" id="alone">No one else on yet / Nadie más conectado</div>
+        <div class="divider"></div>
+        <div class="cap-empty" id="capEmpty">TRANSLATIONS SHOW HERE<br>LAS TRADUCCIONES APARECEN AQUÍ</div>
+        <div class="cap-who" id="capWho"></div>
+        <div class="cap-main" id="capMain"></div>
+        <div class="cap-sub" id="capSub"></div>
+      </div>
 
-  <div class="presets hidden" id="presets"></div>
+      <div class="pad-bay">
+        <i class="screw a"></i><i class="screw b"></i><i class="screw c"></i><i class="screw d"></i>
+        <button class="talk" id="talk"></button>
+      </div>
 
-  <div class="card" id="card">
-    <div class="cap-empty" id="capEmpty">Translations show up here.<br>Las traducciones aparecen aquí.</div>
-    <div class="cap-who" id="capWho"></div>
-    <div class="cap-main" id="capMain"></div>
-    <div class="cap-sub" id="capSub"></div>
-  </div>
-  <div class="history" id="log"></div>
+      <div class="presets hidden" id="presets"></div>
 
-  <div class="foot">
-    <label><input type="checkbox" id="speakToggle"> Read translations aloud</label><br>
-    <button class="linkbtn" id="changeBtn">Change name or language</button>
-    <div class="fine">Translations are an aid and can be wrong. / Las traducciones pueden tener errores.</div>
+      <div class="lcd history" id="log"></div>
+
+      <div class="controls">
+        <label class="switch"><input type="checkbox" id="speakToggle"> READ ALOUD</label>
+        <button class="linkbtn" id="changeBtn">CHANGE NAME</button>
+      </div>
+      <div class="fine">Translations are an aid and can be wrong · Las traducciones pueden tener errores</div>
+    </main>
+
+    <div class="model">MDL AFR-2 · ALLEN FIELD RADIO</div>
     <div class="diag" id="diag"></div>
   </div>
-</main>
+</div>
 
 <div class="toast hidden" id="toast"></div>
 
@@ -240,15 +337,14 @@ function renderRoster() {
   const list = [...S.peers.values()].filter((p) => p.conn && p.conn.open)
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   const people = [{ name: S.name, lang: S.lang, talking: S.transmitting, me: true }, ...list];
-  $("rosterTitle").textContent = !S.joined ? "Connecting… / Conectando…" : "On the channel / En el canal";
-  $("rosterCount").textContent = S.joined ? String(people.length) : "";
+  $("rosterTitle").textContent = !S.joined ? "Connecting…" : `CH ${S.channel}`;
+  $("rosterCount").textContent = S.joined ? `${people.length} ON` : "";
   const chips = $("chips");
   chips.innerHTML = "";
   for (const p of people) {
-    const c = document.createElement("span");
+    const c = document.createElement("div");
     c.className = "chip" + (p.me ? " me" : "") + (p.talking ? " live" : "");
-    c.innerHTML = `<span class="dot"></span>${esc(p.name || "?")}${p.me ? " (you)" : ""} <span class="lg">${esc(langInfo(p.lang).short)}</span>`;
-    if (p.talking) c.title = "Talking";
+    c.innerHTML = `<span class="dot"></span><span class="nm">${esc(p.name || "?")}${p.me ? " (you)" : ""}</span><span class="lead"></span><span class="lg">${esc(langInfo(p.lang).short)}</span>`;
     chips.appendChild(c);
   }
   $("alone").classList.toggle("hidden", !S.joined || list.length > 0);
@@ -256,9 +352,12 @@ function renderRoster() {
   const talk = $("talk");
   talk.disabled = S.listenOnly || !S.joined;
   talk.classList.toggle("on", S.transmitting);
-  talk.innerHTML = S.listenOnly ? "NO MIC<small>listen only</small>"
-    : S.transmitting ? "TAP TO SEND<small>toque para enviar</small>"
-    : "TAP TO TALK<small>toque para hablar</small>";
+  talk.innerHTML = S.listenOnly ? "NO MIC<small>LISTEN ONLY · SOLO ESCUCHAR</small>"
+    : S.transmitting ? "SEND<small>TAP TO SEND · TOQUE PARA ENVIAR</small>"
+    : "TALK<small>TAP TO TALK · TOQUE PARA HABLAR</small>";
+  const led = $("busyLed");
+  led.classList.toggle("tx", S.transmitting);
+  led.classList.toggle("rx", !S.transmitting && list.some((p) => p.talking));
 }
 
 function setStatus(msg) {
@@ -909,6 +1008,7 @@ if (navigator.serviceWorker) navigator.serviceWorker.getRegistrations().then((rs
 if (window.caches) caches.keys().then((ks) => ks.forEach((k) => caches.delete(k))).catch(() => {});
 
 $("joinName").value = S.name;
+$("joinChannel").textContent = CONFIG.channel;
 renderLangButtons();
 renderPresets();
 setCaption({});
