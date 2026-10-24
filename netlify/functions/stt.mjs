@@ -57,11 +57,12 @@ export default async (req) => {
   if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_API_KEY) return reply(503, { id, error: "not_configured", text: "" });
 
   try {
-    const ai = new GoogleGenAI({ httpOptions: { baseUrl: "https://generativelanguage.googleapis.com", timeout: 8000 } });
+    // Google rejects deadlines under 10 s, so cut the call off ourselves (the page waits 9 s).
+    const ai = new GoogleGenAI({ httpOptions: { baseUrl: "https://generativelanguage.googleapis.com" } });
     const res = await ai.models.generateContent({
       model: MODEL,
       contents: [{ role: "user", parts: [{ inlineData: { mimeType: mime, data: body.audio } }, { text: instructions(lang) }] }],
-      config: { temperature: 0, maxOutputTokens: 400 },
+      config: { temperature: 0, maxOutputTokens: 400, abortSignal: AbortSignal.timeout(8500) },
     });
     const text = (res.text || "").replace(/^["'“”]+|["'“”]+$/g, "").trim().slice(0, 600);
     return reply(200, { id, text });
