@@ -14,7 +14,7 @@ C:\Users\<you>\Projects\allen-field-radio\
 
 ## How it works now
 
-- Everyone types their name and picks a language. There's no sign-in.
+- Everyone types their name and picks English or Español. There's no sign-in. The Spanish is neutral Latin American, so crews from Mexico, Guatemala and Honduras all understand it.
 - One channel for everyone: `CONFIG.channel` in `index.html`, default `ALLEN-MAIN`.
 - Tap the big button to talk and tap again to send. The mic turns itself off after 30 s (`CONFIG.maxTalkSeconds`).
 - The translation shows in the card under the button, with the original underneath and older messages listed below.
@@ -25,7 +25,6 @@ C:\Users\<you>\Projects\allen-field-radio\
 | Where | What |
 |---|---|
 | `index.html` → `CONFIG.channel` | The one channel everyone joins |
-| `index.html` → `CONFIG.experimental.enabled` | Leave `false` until you know the crew speaks a Mayan language |
 | `index.html` → `CONFIG.presets[].verified` | Flip to `true` after the bilingual reviewer signs off |
 | `translate.mjs` → `GLOSSARY` | Paving terms the translator must use. Set `verified: true` after review |
 | `translate.mjs` → `SYSTEM_PROMPT`, `MODEL` | Translation instructions and model (`claude-haiku-5-5`) |
@@ -69,7 +68,7 @@ For local testing, `netlify dev` serves the page and functions at http://localho
 
 The page shows a small gray line at the very bottom with the caption engine and the last caption latency. Record the results in the table below.
 
-1. Phone A: language English. Phone B: Español – Guatemala. Both join the same channel.
+1. Phone A: language English. Phone B: Español. Both join the same channel.
 2. On A, tap the button, say "Hold traffic, truck twelve is backing in.", and tap again. B hears the voice. Within about 3 s, B sees and hears Spanish, and the caption keeps "12".
 3. On B, tap, say "Ya viene la troca, ¿está listo el paver?", and tap again. A gets an English caption that keeps "paver".
 4. (Only if `showPresets` is on.) Tap STOP on A. B gets the alarm tone, a red flash, and Spanish speech right away.
@@ -87,9 +86,8 @@ The page shows a small gray line at the very bottom with the caption engine and 
 ## 5. Before crews rely on it
 
 - [ ] A bilingual crew member reviews the `GLOSSARY` in `translate.mjs`, and you set `verified: true`.
-- [ ] Before turning on `showPresets`, the same review for every preset's Spanish wording in `CONFIG.presets`.
+- [ ] Before turning on `showPresets`, the same review for every preset's Spanish line in `CONFIG.presets`.
 - [ ] Pick an STT provider for `stt.mjs` if any phone conflicts.
-- [ ] Turn on `experimental` (Mayan) only after you confirm what the crew speaks. It shows text captions only and is badged "experimental – may be wrong".
 
 ## Privacy
 
