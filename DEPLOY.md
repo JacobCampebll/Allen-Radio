@@ -4,39 +4,48 @@
 
 ```
 C:\Users\<you>\Projects\allen-field-radio\
-├─ index.html                     the whole app (CONFIG at top)
+├─ index.html                        the whole app (CONFIG at top)
+├─ allen-logo-white.png              header logo
 ├─ netlify.toml
-├─ package.json                   pulls in the Anthropic SDK for the function
-├─ netlify\functions\translate.mjs   one translation call per transmission
-├─ netlify\functions\stt.mjs         server speech-to-text fallback (STUB, see TODO)
-└─ netlify\lib\allen-auth.js         checks the Supabase Bearer token
+├─ package.json                      pulls in the Anthropic SDK for the function
+├─ netlify\functions\translate.mjs   one translation call per transmission (model, prompt, glossary live here)
+└─ netlify\functions\stt.mjs         server speech-to-text fallback (STUB, see TODO)
 ```
 
-If you already have the org-wide `allen-auth.js`, copy it over `netlify\lib\allen-auth.js`.
-The functions only call `requireUser(req)` and expect `{ user }` or `{ response }` back.
+## How it works now
 
-## 1. Fill in CONFIG (index.html)
+- Everyone types their name and picks a language. There's no sign-in.
+- One channel for everyone: `CONFIG.channel` in `index.html`, default `ALLEN-MAIN`.
+- Tap the big button to talk and tap again to send. The mic turns itself off after 30 s (`CONFIG.maxTalkSeconds`).
+- The translation shows in the card under the button, with the original underneath and older messages listed below.
+- Safety buttons are built in but hidden. Set `CONFIG.showPresets: true` to show them.
 
-Open `index.html` and edit the `CONFIG` block at the top:
+## 1. Settings you might change
 
-| Key | Set to |
+| Where | What |
 |---|---|
-| `supabaseUrl` / `supabaseAnonKey` | The shared Allen Supabase project URL and its publishable (anon) key. If you leave these blank, login is skipped and every translation returns 401, so captions show "(not translated)". |
-| `translate.model` | Defaults to `claude-haiku-5-5`. The function only accepts `claude-haiku-5-5` or `claude-sonnet-5-5`. |
-| `experimental.enabled` | Leave `false` until you know the crew speaks a Mayan language. |
-| `glossary[].verified`, `presets[].verified` | Flip to `true` once the bilingual reviewer signs off on each one. |
+| `index.html` → `CONFIG.channel` | The one channel everyone joins |
+| `index.html` → `CONFIG.experimental.enabled` | Leave `false` until you know the crew speaks a Mayan language |
+| `index.html` → `CONFIG.presets[].verified` | Flip to `true` after the bilingual reviewer signs off |
+| `translate.mjs` → `GLOSSARY` | Paving terms the translator must use. Set `verified: true` after review |
+| `translate.mjs` → `SYSTEM_PROMPT`, `MODEL` | Translation instructions and model (`claude-haiku-5-5`) |
 
-## 2. Netlify environment variables
+## 2. Netlify environment variable
 
-Go to Netlify → **allen-field-radio** → Site configuration → Environment variables. Add these with the scope set to **Functions**:
+Go to Netlify → **allen-field-radio** → Site configuration → Environment variables, and add this with the scope set to **Functions**:
 
 | Name | Value |
 |---|---|
 | `ANTHROPIC_API_KEY` | Your Anthropic key. It lives here only and never goes in the HTML. |
-| `SUPABASE_URL` | The same URL as `CONFIG.supabaseUrl` |
-| `SUPABASE_ANON_KEY` | The same key as `CONFIG.supabaseAnonKey` |
 
-Redeploy after you change any of these.
+Redeploy after you change it.
+
+**Because there's no sign-in, the translate function is public.** It's protected three ways:
+- The prompt and model are fixed on the server, so it can only translate.
+- It refuses calls from other websites.
+- Netlify limits each IP to 30 calls a minute.
+
+Anyone with the link can still use the radio. Keep an eye on usage in the Anthropic console, and add sign-in back if that becomes a problem.
 
 ## 3. Deploy
 
@@ -58,12 +67,12 @@ For local testing, `netlify dev` serves the page and functions at http://localho
 
 ## 4. Smoke test (two phones, same channel)
 
-The page shows a small diagnostics line at the bottom with the caption engine and the last caption latency. Record the results in the table below.
+The page shows a small gray line at the very bottom with the caption engine and the last caption latency. Record the results in the table below.
 
 1. Phone A: language English. Phone B: Español – Guatemala. Both join the same channel.
-2. On A, hold PTT and say "Hold traffic, truck twelve is backing in." B hears the voice. Within about 3 s, B sees and hears Spanish, and the caption keeps "12".
-3. On B, say "Ya viene la troca, ¿está listo el paver?" A gets an English caption that keeps "paver".
-4. Tap STOP on A. B gets the alarm tone, a red LCD flash, and Spanish speech right away.
+2. On A, tap the button, say "Hold traffic, truck twelve is backing in.", and tap again. B hears the voice. Within about 3 s, B sees and hears Spanish, and the caption keeps "12".
+3. On B, tap, say "Ya viene la troca, ¿está listo el paver?", and tap again. A gets an English caption that keeps "paver".
+4. (Only if `showPresets` is on.) Tap STOP on A. B gets the alarm tone, a red flash, and Spanish speech right away.
 5. Remove `ANTHROPIC_API_KEY` and redeploy. Voice still works, and captions show the original with "(not translated)". Put the key back.
 6. Record the caption latency, and whether phone speech recognition broke the mic, on each device:
 
@@ -74,12 +83,11 @@ The page shows a small diagnostics line at the bottom with the caption engine an
 
 **How to tell whether STT conflicted:** In Auto mode, the app watches the radio mic while the phone's speech recognition runs. If the mic track dies, or goes silent while recognition still hears words, the app shows a toast ("can't caption and transmit at once"), switches that phone to server captions, and the diag line reads "phone STT conflicted with mic → server". Also confirm by ear on the other phone: does the voice still come through while captions work?
 
-**If iPhone conflicts:** server captions need a real provider in `stt.mjs` (see the TODO). Until you add one, a conflicting phone transmits voice normally but sends "no caption". You can also set the Captions dropdown to **Off** on that phone.
-
+**If iPhone conflicts:** server captions need a real provider in `stt.mjs` (see the TODO). Until you add one, a conflicting phone transmits voice normally but sends "no caption". 
 ## 5. Before crews rely on it
 
-- [ ] A bilingual crew member reviews every preset's Spanish wording (GT / MX / general) in `CONFIG.presets`, and you set `verified: true`. The yellow dots go away.
-- [ ] The same review for `CONFIG.glossary`.
+- [ ] A bilingual crew member reviews the `GLOSSARY` in `translate.mjs`, and you set `verified: true`.
+- [ ] Before turning on `showPresets`, the same review for every preset's Spanish wording in `CONFIG.presets`.
 - [ ] Pick an STT provider for `stt.mjs` if any phone conflicts.
 - [ ] Turn on `experimental` (Mayan) only after you confirm what the crew speaks. It shows text captions only and is badged "experimental – may be wrong".
 

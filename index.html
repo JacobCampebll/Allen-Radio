@@ -2,210 +2,119 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#16181b">
 <title>Allen Field Radio</title>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
 <style>
   :root {
-    --chassis: #1d2024; --chassis-hi: #2a2e33; --edge: #0d0f11;
-    --lcd: #b7c79a; --lcd-ink: #1f2a12; --lcd-dim: #5d6e47;
-    --orange: #ff6a13; --orange-dk: #c94d05;
-    --rx: #36e05a; --tx: #ff3b30; --text: #e9ecef; --muted: #8b939c;
+    --bg: #f3f4f6; --card: #ffffff; --ink: #111418; --muted: #5f6873; --line: #dfe3e8;
+    --bar: #16181b; --orange: #ff6a13; --orange-dk: #c94d05; --red: #d0021b; --green: #1f9d4a;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; background: #0b0c0e; color: var(--text);
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  body { min-height: 100dvh; display: flex; justify-content: center; padding: 12px 12px 28px; }
   .hidden { display: none !important; }
   button { font: inherit; cursor: pointer; }
 
-  /* ---------- Handset ---------- */
-  .radio { width: 100%; max-width: 440px; position: relative; padding-top: 44px; }
-  .antenna { position: absolute; top: 0; right: 64px; width: 18px; height: 60px; border-radius: 9px 9px 3px 3px;
-    background: linear-gradient(90deg, #111, #34383d 45%, #111); }
-  .body { background: linear-gradient(160deg, var(--chassis-hi), var(--chassis) 40%, #16181b);
-    border: 2px solid var(--edge); border-radius: 28px; padding: 18px 16px 20px;
-    box-shadow: inset 0 2px 0 rgba(255,255,255,.06), 0 18px 40px rgba(0,0,0,.6); position: relative; }
-  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-  .brand { font-weight: 800; letter-spacing: .14em; font-size: 12px; color: var(--muted); }
-  .leds { display: flex; gap: 10px; align-items: center; font-size: 10px; color: var(--muted); letter-spacing: .1em; }
-  .led { width: 10px; height: 10px; border-radius: 50%; background: #2c3136; display: inline-block; margin-right: 4px;
-    box-shadow: inset 0 1px 2px rgba(0,0,0,.6); vertical-align: middle; }
-  .led.rx.on { background: var(--rx); box-shadow: 0 0 10px var(--rx); }
-  .led.tx.on { background: var(--tx); box-shadow: 0 0 10px var(--tx); }
-  .grille { height: 34px; margin: 0 22px 12px; border-radius: 10px;
-    background: repeating-linear-gradient(90deg, #0e1012 0 4px, #24282d 4px 8px); }
+  .top { background: var(--bar); padding: 14px 16px calc(14px) ; padding-top: max(14px, env(safe-area-inset-top));
+    display: flex; justify-content: center; }
+  .top img { width: min(260px, 70vw); height: auto; display: block; }
+  .wrap { max-width: 480px; margin: 0 auto; padding: 16px 16px 32px; }
 
-  /* ---------- LCD ---------- */
-  .lcd { background: var(--lcd); color: var(--lcd-ink); border-radius: 10px; padding: 10px 12px;
-    border: 3px solid #0c0d0e; box-shadow: inset 0 0 18px rgba(0,0,0,.35), 0 0 14px rgba(183,199,154,.15);
-    font-family: "Courier New", ui-monospace, monospace; text-transform: uppercase; }
-  .lcd-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 700; }
-  .lcd-dim { color: var(--lcd-dim); }
-  .roster { margin: 6px 0; font-size: 13px; line-height: 1.35; min-height: 18px; max-height: 92px; overflow-y: auto; }
-  .roster .talk::before { content: "▶ "; }
-  .roster .exp { font-size: 10px; }
-  .caption { border-top: 2px dashed var(--lcd-dim); padding-top: 6px; min-height: 64px; text-transform: none; }
-  .cap-main { font-size: 21px; font-weight: 800; line-height: 1.2; word-wrap: break-word; }
-  .cap-sub { font-size: 13px; color: var(--lcd-dim); margin-top: 3px; word-wrap: break-word; }
-  .cap-who { font-size: 11px; color: var(--lcd-dim); text-transform: uppercase; }
-  .badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px;
-    background: var(--lcd-ink); color: var(--lcd); text-transform: uppercase; margin-left: 4px; }
-  .status { font-size: 11px; margin-top: 6px; color: var(--lcd-dim); min-height: 14px; }
-  .lcd.flash-red { animation: flashRed .35s steps(1) 5; }
-  .lcd.flash-amber { animation: flashAmber .35s steps(1) 2; }
-  @keyframes flashRed { 0% { background: #ff2a1a; color: #fff; } 50% { background: var(--lcd); color: var(--lcd-ink); } }
-  @keyframes flashAmber { 0% { background: #ffb020; } 50% { background: var(--lcd); } }
+  /* Join */
+  h1 { font-size: 22px; margin: 4px 0 16px; text-align: center; }
+  label.field { display: block; font-weight: 700; font-size: 15px; margin: 16px 0 6px; }
+  input.name { width: 100%; padding: 14px; font-size: 20px; border: 2px solid var(--line); border-radius: 12px; background: var(--card); }
+  .langs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .lang { padding: 14px 8px; border-radius: 12px; border: 2px solid var(--line); background: var(--card); font-size: 16px; font-weight: 700; color: var(--ink); }
+  .lang.on { border-color: var(--orange); background: #fff1e8; }
+  .lang small { display: block; font-size: 11px; font-weight: 600; color: var(--muted); }
+  .bigbtn { width: 100%; margin-top: 22px; padding: 18px; font-size: 20px; font-weight: 800; border: 0; border-radius: 14px;
+    background: var(--orange); color: #1a0d03; }
+  .err { color: var(--red); font-size: 15px; min-height: 20px; margin-top: 8px; text-align: center; }
 
-  .menu { display: flex; gap: 8px; margin-top: 10px; }
-  .menu label { flex: 1; font-size: 10px; letter-spacing: .1em; color: var(--muted); }
-  .menu select { width: 100%; margin-top: 3px; background: #0f1113; color: var(--lcd); border: 2px solid #33383e;
-    border-radius: 8px; padding: 8px; font: 700 14px "Courier New", monospace; }
+  /* Radio */
+  .who { text-align: center; font-size: 15px; color: var(--muted); min-height: 22px; }
+  .who b { color: var(--ink); }
+  .who .live { color: var(--green); font-weight: 800; }
+  .talk-wrap { display: flex; justify-content: center; margin: 18px 0; }
+  .talk { width: 210px; height: 210px; border-radius: 50%; border: 0; color: #1a0d03; font-weight: 900; font-size: 26px; line-height: 1.15;
+    background: radial-gradient(circle at 35% 30%, #ff9a55, var(--orange) 50%, var(--orange-dk));
+    box-shadow: 0 8px 0 #8a3503, 0 14px 26px rgba(0,0,0,.25); user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+  .talk small { display: block; font-size: 14px; font-weight: 700; opacity: .8; margin-top: 4px; }
+  .talk.on { background: radial-gradient(circle at 35% 30%, #ff6b6b, var(--red) 55%, #8f0010); color: #fff;
+    box-shadow: 0 3px 0 #5c000a, 0 0 0 10px rgba(208,2,27,.18); transform: translateY(5px); }
+  .talk:disabled { filter: grayscale(1); opacity: .55; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-height: 120px; }
+  .card.flash { animation: flash .35s steps(1) 5; }
+  @keyframes flash { 0% { background: var(--red); color: #fff; } 50% { background: var(--card); color: var(--ink); } }
+  .cap-who { font-size: 13px; color: var(--muted); font-weight: 700; }
+  .cap-main { font-size: 26px; font-weight: 800; line-height: 1.25; margin-top: 4px; word-wrap: break-word; }
+  .cap-sub { font-size: 15px; color: var(--muted); margin-top: 8px; word-wrap: break-word; }
+  .cap-empty { color: var(--muted); font-size: 16px; text-align: center; padding-top: 30px; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 6px; background: #ffe7a3; color: #5a4300; margin-left: 6px; }
+  .history { margin-top: 14px; }
+  .item { border-top: 1px solid var(--line); padding: 10px 2px; }
+  .item .t { font-size: 12px; color: var(--muted); }
+  .item .m { font-size: 17px; font-weight: 700; margin-top: 2px; }
+  .item .s { font-size: 14px; color: var(--muted); }
+  .item.alarm .m { color: var(--red); }
 
-  /* ---------- PTT ---------- */
-  .ptt-wrap { display: flex; justify-content: center; margin: 16px 0 12px; }
-  .ptt { width: 168px; height: 168px; border-radius: 50%; border: 4px solid #0d0f11; touch-action: none; user-select: none;
-    -webkit-user-select: none; -webkit-touch-callout: none;
-    background: radial-gradient(circle at 35% 30%, #ff9a55, var(--orange) 45%, var(--orange-dk));
-    color: #1a0d03; font-weight: 900; font-size: 26px; letter-spacing: .08em;
-    box-shadow: 0 8px 0 #7a2f02, 0 14px 24px rgba(0,0,0,.5); transition: transform .05s, box-shadow .05s; }
-  .ptt small { display: block; font-size: 11px; font-weight: 700; letter-spacing: .1em; opacity: .75; }
-  .ptt.down { transform: translateY(6px); box-shadow: 0 2px 0 #7a2f02, 0 6px 12px rgba(0,0,0,.5); }
-  .ptt:disabled { filter: grayscale(.9) brightness(.6); }
-
-  /* ---------- Presets ---------- */
-  .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .preset { position: relative; min-height: 60px; border-radius: 12px; border: 3px solid #0d0f11; color: #fff;
-    font-weight: 900; font-size: 17px; letter-spacing: .04em; text-shadow: 0 1px 2px rgba(0,0,0,.5);
-    box-shadow: 0 4px 0 rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; gap: 8px; }
-  .preset:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.55); }
+  .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .preset { position: relative; min-height: 56px; border-radius: 12px; border: 0; color: #fff; font-weight: 900; font-size: 16px; }
   .preset.wide { grid-column: span 2; }
-  .preset .dot { position: absolute; top: 6px; right: 8px; width: 9px; height: 9px; border-radius: 50%;
-    background: #ffd400; border: 1px solid #000; }
-  .preset-note { font-size: 11px; color: var(--muted); margin: 6px 2px 0; }
-  .preset-note .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ffd400; border: 1px solid #000; }
+  .preset .dot { position: absolute; top: 6px; right: 8px; width: 9px; height: 9px; border-radius: 50%; background: #ffd400; }
 
-  /* ---------- Controls & log ---------- */
-  .controls { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-top: 14px; font-size: 13px; color: var(--muted); align-items: center; }
-  .controls label { display: flex; gap: 6px; align-items: center; }
-  .controls input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--orange); }
-  .controls select { background: #0f1113; color: var(--text); border: 1px solid #33383e; border-radius: 6px; padding: 4px; }
-  .linkbtn { background: none; border: 0; color: var(--muted); text-decoration: underline; padding: 0; font-size: 12px; }
-  .log { margin-top: 12px; background: #101214; border: 1px solid #2a2e33; border-radius: 10px; max-height: 210px;
-    overflow-y: auto; padding: 4px 10px; font-size: 13px; }
-  .log h3 { font-size: 11px; letter-spacing: .12em; color: var(--muted); margin: 6px 0; font-weight: 700; }
-  .log-item { border-top: 1px solid #22262a; padding: 6px 0; }
-  .log-item .t { color: var(--muted); font-size: 11px; }
-  .log-item .m { font-weight: 700; }
-  .log-item .s { color: var(--muted); }
-  .log-item.alarm .m { color: #ff6b5e; }
-  .diag { font: 11px ui-monospace, monospace; color: #6b737c; margin-top: 10px; word-break: break-word; }
-
-  /* ---------- Cards (login / join / notice) ---------- */
-  .card { width: 100%; max-width: 440px; background: var(--chassis); border: 2px solid var(--edge); border-radius: 20px;
-    padding: 22px 18px; align-self: flex-start; margin-top: 30px; }
-  .card h1 { margin: 0 0 4px; font-size: 20px; letter-spacing: .06em; }
-  .card p { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
-  .card label { display: block; font-size: 12px; letter-spacing: .1em; color: var(--muted); margin: 12px 0 4px; }
-  .card input, .card select { width: 100%; padding: 12px; font-size: 17px; border-radius: 10px; border: 2px solid #33383e;
-    background: #0f1113; color: var(--text); }
-  .bigbtn { width: 100%; margin-top: 18px; padding: 16px; font-size: 19px; font-weight: 900; letter-spacing: .08em;
-    border: 0; border-radius: 12px; background: var(--orange); color: #1a0d03; }
-  .err { color: #ff6b5e; font-size: 14px; min-height: 18px; margin-top: 8px; }
-  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.75); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 20; }
-  .modal .card { margin: 0; }
-  .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: #22262a; color: var(--text);
-    border: 1px solid #3a3f45; border-radius: 10px; padding: 10px 14px; font-size: 14px; z-index: 30; max-width: 92vw; }
+  .foot { margin-top: 20px; text-align: center; font-size: 14px; color: var(--muted); }
+  .foot label { display: inline-flex; gap: 8px; align-items: center; }
+  .foot input { width: 20px; height: 20px; accent-color: var(--orange); }
+  .linkbtn { background: none; border: 0; color: var(--muted); text-decoration: underline; padding: 8px; font-size: 14px; }
+  .fine { font-size: 12px; margin-top: 6px; }
+  .diag { font: 11px ui-monospace, monospace; color: #9aa1a9; margin-top: 6px; }
+  .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--bar); color: #fff;
+    border-radius: 10px; padding: 10px 14px; font-size: 14px; z-index: 30; max-width: 92vw; }
 </style>
 </head>
 <body>
 
-<!-- ===================== LOGIN (shared Allen Supabase block) ===================== -->
-<section id="loginView" class="card hidden">
-  <h1>ALLEN FIELD RADIO</h1>
-  <p>Sign in with your Allen account.</p>
-  <form id="loginForm">
-    <label for="loginEmail">EMAIL</label>
-    <input id="loginEmail" type="email" autocomplete="username" required>
-    <label for="loginPass">PASSWORD</label>
-    <input id="loginPass" type="password" autocomplete="current-password" required>
-    <button class="bigbtn" type="submit">SIGN IN</button>
-    <div class="err" id="loginErr"></div>
-  </form>
-</section>
+<header class="top"><img src="allen-logo-white.png" alt="The Allen Company"></header>
 
 <!-- ===================== JOIN ===================== -->
-<section id="joinView" class="card hidden">
-  <h1>ALLEN FIELD RADIO</h1>
-  <p>Pick a callsign, channel, and your language.</p>
-  <label for="joinName">CALLSIGN</label>
-  <input id="joinName" maxlength="16" placeholder="TRUCK 12" autocapitalize="characters">
-  <label for="joinChannel">CHANNEL</label>
-  <input id="joinChannel" maxlength="24" placeholder="PAVING-1" autocapitalize="characters">
-  <label for="joinLang">MY LANGUAGE / MI IDIOMA</label>
-  <select id="joinLang"></select>
-  <button class="bigbtn" id="joinBtn">JOIN CHANNEL</button>
+<section id="joinView" class="wrap">
+  <h1>Field Radio</h1>
+  <label class="field" for="joinName">Your name / Su nombre</label>
+  <input class="name" id="joinName" maxlength="20" autocomplete="name" placeholder="Name">
+  <label class="field">Your language / Su idioma</label>
+  <div class="langs" id="langButtons"></div>
+  <button class="bigbtn" id="joinBtn">Start / Empezar</button>
   <div class="err" id="joinErr"></div>
 </section>
 
 <!-- ===================== RADIO ===================== -->
-<main id="radioView" class="radio hidden">
-  <div class="antenna"></div>
-  <div class="body">
-    <div class="topbar">
-      <span class="brand">ALLEN FIELD RADIO</span>
-      <span class="leds"><span><i class="led rx" id="ledRx"></i>RX</span><span><i class="led tx" id="ledTx"></i>TX</span></span>
-    </div>
-    <div class="grille"></div>
+<main id="radioView" class="wrap hidden">
+  <div class="who" id="who">Connecting…</div>
 
-    <div class="lcd" id="lcd">
-      <div class="lcd-row"><span id="lcdChannel">CH --</span><span id="lcdSelf">--</span></div>
-      <div class="roster" id="roster"></div>
-      <div class="caption" id="caption">
-        <div class="cap-who" id="capWho"></div>
-        <div class="cap-main" id="capMain"></div>
-        <div class="cap-sub" id="capSub"></div>
-      </div>
-      <div class="status" id="status"></div>
-    </div>
+  <div class="talk-wrap"><button class="talk" id="talk"></button></div>
 
-    <div class="menu">
-      <label>LANG / IDIOMA<select id="langSelect"></select></label>
-    </div>
+  <div class="presets hidden" id="presets"></div>
 
-    <div class="ptt-wrap">
-      <button class="ptt" id="ptt">PUSH<small>TO TALK</small></button>
-    </div>
+  <div class="card" id="card">
+    <div class="cap-empty" id="capEmpty">Translations show up here.<br>Las traducciones aparecen aquí.</div>
+    <div class="cap-who" id="capWho"></div>
+    <div class="cap-main" id="capMain"></div>
+    <div class="cap-sub" id="capSub"></div>
+  </div>
+  <div class="history" id="log"></div>
 
-    <div class="presets" id="presets"></div>
-    <div class="preset-note" id="presetNote"></div>
-
-    <div class="controls">
-      <label><input type="checkbox" id="speakToggle"> Speak translations</label>
-      <label>Captions <select id="sttSelect">
-        <option value="auto">Auto</option>
-        <option value="browser">Phone</option>
-        <option value="server">Server</option>
-        <option value="off">Off</option>
-      </select></label>
-      <button class="linkbtn" id="leaveBtn">Leave channel</button>
-      <button class="linkbtn" id="signOutBtn">Sign out</button>
-    </div>
-
-    <div class="log" id="logBox"><h3>RECENT TRAFFIC</h3><div id="log"></div></div>
+  <div class="foot">
+    <label><input type="checkbox" id="speakToggle"> Read translations aloud</label><br>
+    <button class="linkbtn" id="changeBtn">Change name or language</button>
+    <div class="fine">Translations are an aid and can be wrong. / Las traducciones pueden tener errores.</div>
     <div class="diag" id="diag"></div>
   </div>
 </main>
 
-<div class="modal hidden" id="noticeModal">
-  <div class="card">
-    <h1>HEADS UP</h1>
-    <p id="noticeText"></p>
-    <button class="bigbtn" id="noticeOk">OK</button>
-  </div>
-</div>
 <div class="toast hidden" id="toast"></div>
 
 <script>
@@ -213,31 +122,18 @@
    CONFIG
    ===================================================================== */
 const CONFIG = {
-  // Shared Allen Supabase login. Blank URL = login skipped (translations will then 401).
-  supabaseUrl: "",
-  supabaseAnonKey: "",
-
+  channel: "ALLEN-MAIN",      // everyone joins this one channel for now
   peerPrefix: "allen-field-radio",
   maxSlots: 12,
   peerOptions: { debug: 0 },
+  maxTalkSeconds: 30,         // a forgotten open mic stops itself
 
+  // Model, translation prompt and glossary live in netlify/functions/translate.mjs.
   translate: {
     endpoint: "/.netlify/functions/translate",
     sttEndpoint: "/.netlify/functions/stt",
-    model: "claude-haiku-5-5",
     timeoutMs: 5000,
     sttTimeoutMs: 6000,
-    systemPrompt: [
-      "You translate short two-way radio transmissions between crew members on asphalt paving, milling, flagging and road-construction job sites.",
-      "Rules:",
-      "- Translate naturally for each target dialect (Guatemalan, Mexican or general US Spanish; American English), the way a crew member would say it on the radio. Keep it short and radio-style.",
-      "- Preserve exactly: numbers, truck and equipment numbers, station numbers (like 12+50), names, tonnages and units. Write numbers as digits.",
-      "- Never add information, warnings or explanations that are not in the source.",
-      "- Use the glossary terms. Jobsite words that Spanish-speaking crews already say in English (like \"paver\") may stay as-is.",
-      "- If part of the source is unclear or garbled, translate what is clear and append \" [?]\".",
-      "- For an experimental Mayan target (K'iche', Q'eqchi', Mam, Kaqchikel): if you cannot translate reliably, return the Spanish translation followed by \" [?]\".",
-      "- Return JSON only: one key per target language code, each value the translation."
-    ].join("\n"),
   },
 
   // Caption engine: "auto" tries the phone's speech recognition and falls back to the
@@ -245,10 +141,10 @@ const CONFIG = {
   sttDefault: "auto",
 
   languages: [
-    { code: "en-US", label: "English",              short: "EN" },
-    { code: "es-GT", label: "Español – Guatemala",  short: "ES-GT" },
-    { code: "es-MX", label: "Español – México",     short: "ES-MX" },
-    { code: "es-US", label: "Español – general",    short: "ES-US" },
+    { code: "en-US", label: "English",   sub: "",          short: "EN" },
+    { code: "es-GT", label: "Español",   sub: "Guatemala", short: "ES-GT" },
+    { code: "es-MX", label: "Español",   sub: "México",    short: "ES-MX" },
+    { code: "es-US", label: "Español",   sub: "general",   short: "ES" },
   ],
 
   // Mayan languages: captions only (no speech in, no speech out), clearly badged.
@@ -256,33 +152,17 @@ const CONFIG = {
     enabled: false,
     badge: "experimental – may be wrong",
     languages: [
-      { code: "quc", label: "K'iche'",   short: "QUC" },
-      { code: "kek", label: "Q'eqchi'",  short: "KEK" },
-      { code: "mam", label: "Mam",       short: "MAM" },
-      { code: "cak", label: "Kaqchikel", short: "CAK" },
+      { code: "quc", label: "K'iche'",   sub: "experimental", short: "QUC" },
+      { code: "kek", label: "Q'eqchi'",  sub: "experimental", short: "KEK" },
+      { code: "mam", label: "Mam",       sub: "experimental", short: "MAM" },
+      { code: "cak", label: "Kaqchikel", sub: "experimental", short: "CAK" },
     ],
     presetFallback: "es-US", // preset text shown (not spoken) to experimental listeners
   },
 
-  // Term pairs the model must use. Set verified: true only after the bilingual crew review.
-  glossary: [
-    { en: "paver",           es: "la pavimentadora (el paver)",      verified: false },
-    { en: "roller",          es: "el rodillo (la aplanadora)",       verified: false },
-    { en: "tack",            es: "el riego de liga (el tack)",       verified: false },
-    { en: "milling machine", es: "la fresadora",                     verified: false },
-    { en: "lane closure",    es: "el cierre de carril",              verified: false },
-    { en: "flagger",         es: "el banderero",                     verified: false },
-    { en: "haul truck",      es: "el camión de volteo (la troca)",   verified: false },
-    { en: "dump",            es: "descargar / tirar la carga",       verified: false },
-    { en: "tons",            es: "toneladas",                        verified: false },
-    { en: "the mat",         es: "la carpeta (el tendido)",          verified: false },
-    { en: "shoulder",        es: "el acotamiento (la orilla)",       verified: false },
-    { en: "cones",           es: "los conos",                        verified: false },
-    { en: "back it up",      es: "échese para atrás / dele reversa", verified: false },
-    { en: "hold traffic",    es: "detengan el tráfico",              verified: false },
-  ],
-
-  // Safety presets: fixed wording per language, no API call. alarm = loud tone + red flash.
+  // Safety buttons are hidden for the simple version. Set true to bring the row back.
+  // Set verified: true only after the bilingual crew review.
+  showPresets: false,
   presets: [
     { key: "STOP", icon: "✋", color: "#d0021b", alarm: true, wide: true, verified: false,
       text: { "en-US": "Stop! Stop now!", "es-GT": "¡Alto! ¡Deténgase ya!", "es-MX": "¡Alto! ¡Deténgase ya!", "es-US": "¡Alto! ¡Deténgase ya!" } },
@@ -302,7 +182,6 @@ const CONFIG = {
   ],
 
   captionLogSize: 10,
-  notice: "Translations are an aid. Use preset buttons for safety calls.\n\nLas traducciones son una ayuda. Use los botones de seguridad para avisos de seguridad.",
 };
 
 /* =====================================================================
@@ -314,16 +193,15 @@ const store = {
 };
 
 const S = {
-  sb: null, session: null,
-  name: store.get("name", ""), channel: store.get("channel", ""),
+  name: store.get("name", ""), channel: CONFIG.channel,
   lang: store.get("lang", "en-US"),
   speak: store.get("speak", true),
-  sttMode: store.get("sttMode", CONFIG.sttDefault),
+  sttMode: CONFIG.sttDefault,
   sttConflict: store.get("sttConflict", false),
   peer: null, myId: "", slot: 0, joined: false,
   audioCtx: null, micStream: null, micTrack: null, outStream: null, listenOnly: false, analyser: null,
-  peers: new Map(),            // peerId -> { id, name, lang, call, conn, audio, talking }
-  transmitting: false, capture: null,
+  peers: new Map(),            // peerId -> { id, name, lang, call, conn, outCall, outConn, audio, talking }
+  transmitting: false, talkTimer: null, capture: null,
   log: [], speechQueue: [], speaking: false, lastLatency: null,
 };
 
@@ -337,53 +215,54 @@ const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString
 const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "main";
 const clip = (v, n) => (typeof v === "string" ? v.slice(0, n) : "");
 const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 if (!allLanguages().some((l) => l.code === S.lang)) S.lang = "en-US";
 
 /* =====================================================================
    RENDERING
    ===================================================================== */
 function show(view) {
-  for (const v of ["loginView", "joinView", "radioView"]) $(v).classList.toggle("hidden", v !== view);
+  for (const v of ["joinView", "radioView"]) $(v).classList.toggle("hidden", v !== view);
 }
 
-function fillLangSelect(sel) {
-  sel.innerHTML = "";
-  for (const l of allLanguages()) {
-    const o = document.createElement("option");
-    o.value = l.code;
-    o.textContent = isExperimental(l.code) ? `${l.label} (${CONFIG.experimental.badge})` : l.label;
-    sel.appendChild(o);
-  }
-  sel.value = S.lang;
-}
-
-function renderRoster() {
-  $("lcdChannel").textContent = `CH ${S.channel || "--"}${S.slot ? " · " + S.slot : ""}`;
-  $("lcdSelf").textContent = `${S.name || "--"} · ${langInfo(S.lang).short}`;
-  const box = $("roster");
+function renderLangButtons() {
+  const box = $("langButtons");
   box.innerHTML = "";
-  const list = [...S.peers.values()].filter((p) => p.conn && p.conn.open);
-  if (!list.length) {
-    box.innerHTML = `<div class="lcd-dim">${S.joined ? "NO ONE ELSE ON CHANNEL" : "CONNECTING…"}</div>`;
+  for (const l of allLanguages()) {
+    const b = document.createElement("button");
+    b.className = "lang" + (l.code === S.lang ? " on" : "");
+    b.innerHTML = `${esc(l.label)}${l.sub ? `<small>${esc(l.sub)}</small>` : ""}`;
+    b.addEventListener("click", () => { S.lang = l.code; renderLangButtons(); });
+    box.appendChild(b);
   }
-  for (const p of list) {
-    const d = document.createElement("div");
-    d.className = p.talking ? "talk" : "";
-    d.textContent = `${p.name || "?"} · ${langInfo(p.lang).short}`;
-    if (isExperimental(p.lang)) { const b = document.createElement("span"); b.className = "badge exp"; b.textContent = "EXP"; d.appendChild(b); }
-    box.appendChild(d);
-  }
-  const anyTalking = list.some((p) => p.talking);
-  $("ledRx").classList.toggle("on", anyTalking);
-  $("ledTx").classList.toggle("on", S.transmitting);
-  $("ptt").disabled = S.listenOnly;
-  $("ptt").innerHTML = S.listenOnly ? "LISTEN<small>ONLY · NO MIC</small>" : S.transmitting ? "TALKING<small>RELEASE TO SEND</small>" : "PUSH<small>TO TALK</small>";
-  $("ptt").classList.toggle("down", S.transmitting);
 }
 
-function setStatus(msg) { $("status").textContent = msg || ""; }
+// "Who's on" line + talk button state. (Name kept from the original radio.)
+function renderRoster() {
+  const list = [...S.peers.values()].filter((p) => p.conn && p.conn.open);
+  const talker = list.find((p) => p.talking);
+  const who = $("who");
+  if (!S.joined) who.textContent = "Connecting…";
+  else if (talker) who.innerHTML = `<span class="live">● ${esc(talker.name || "Someone")} is talking…</span>`;
+  else if (!list.length) who.textContent = "No one else on the radio yet / Nadie más conectado";
+  else who.innerHTML = "On the radio: " + list.map((p) => `<b>${esc(p.name || "?")}</b> (${esc(langInfo(p.lang).short)})`).join(", ");
+
+  const talk = $("talk");
+  talk.disabled = S.listenOnly || !S.joined;
+  talk.classList.toggle("on", S.transmitting);
+  talk.innerHTML = S.listenOnly ? "NO MIC<small>listen only</small>"
+    : S.transmitting ? "TAP TO SEND<small>toque para enviar</small>"
+    : "TAP TO TALK<small>toque para hablar</small>";
+}
+
+function setStatus(msg) {
+  if (!msg || msg === "ON AIR") return;
+  if (!S.joined) $("who").textContent = /^CLAIMING/.test(msg) ? "Connecting…" : msg;
+  else toast(msg.charAt(0) + msg.slice(1).toLowerCase());
+}
 
 function setCaption({ who = "", main = "", sub = "", badge = "" }) {
+  $("capEmpty").classList.toggle("hidden", !!(who || main || sub));
   $("capWho").textContent = who;
   $("capMain").textContent = main;
   $("capSub").textContent = sub;
@@ -395,11 +274,12 @@ function addLog(entry) {
   S.log.length = Math.min(S.log.length, CONFIG.captionLogSize);
   const box = $("log");
   box.innerHTML = "";
-  for (const e of S.log) {
+  // The newest entry is already in the big card; list the earlier ones.
+  for (const e of S.log.slice(1)) {
     const d = document.createElement("div");
-    d.className = "log-item" + (e.alarm ? " alarm" : "");
+    d.className = "item" + (e.alarm ? " alarm" : "");
     const t = document.createElement("div"); t.className = "t";
-    t.textContent = `${e.time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })} · ${e.who || ""}${e.badge ? " · " + e.badge : ""}`;
+    t.textContent = `${e.time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · ${e.who || ""}`;
     const m = document.createElement("div"); m.className = "m"; m.textContent = e.main;
     d.append(t, m);
     if (e.sub) { const s = document.createElement("div"); s.className = "s"; s.textContent = e.sub; d.appendChild(s); }
@@ -409,36 +289,33 @@ function addLog(entry) {
 
 function renderPresets() {
   const box = $("presets");
+  box.classList.toggle("hidden", !CONFIG.showPresets);
+  if (!CONFIG.showPresets) return;
   box.innerHTML = "";
-  let unverified = 0;
   for (const p of CONFIG.presets) {
     const b = document.createElement("button");
     b.className = "preset" + (p.wide ? " wide" : "");
     b.style.background = p.color;
     b.textContent = `${p.icon} ${p.key}`;
-    if (!p.verified) { unverified++; const dot = document.createElement("span"); dot.className = "dot"; dot.title = "Unverified wording"; b.appendChild(dot); }
+    if (!p.verified) { const dot = document.createElement("span"); dot.className = "dot"; dot.title = "Unverified wording"; b.appendChild(dot); }
     b.addEventListener("click", () => sendPreset(p.key));
     box.appendChild(b);
   }
-  $("presetNote").innerHTML = unverified ? `<span class="dot"></span> = Spanish wording not yet verified by crew reviewer` : "";
 }
 
 function renderDiag() {
-  const engine = currentEngine();
   const parts = [
-    `id ${S.myId || "-"}`,
-    `captions: ${engine}${S.sttConflict ? " (phone STT conflicted with mic → server)" : ""}`,
-    S.lastLatency != null ? `last caption latency ${S.lastLatency} ms` : "",
-    CONFIG.supabaseUrl ? "" : "login not configured",
+    `captions: ${currentEngine()}${S.sttConflict ? " (phone STT conflicted → server)" : ""}`,
+    S.lastLatency != null ? `latency ${S.lastLatency} ms` : "",
   ].filter(Boolean);
   $("diag").textContent = parts.join(" · ");
 }
 
-function flashLcd(alarm) {
-  const lcd = $("lcd");
-  lcd.classList.remove("flash-red", "flash-amber");
-  void lcd.offsetWidth;
-  lcd.classList.add(alarm ? "flash-red" : "flash-amber");
+function flashLcd() {
+  const card = $("card");
+  card.classList.remove("flash");
+  void card.offsetWidth;
+  card.classList.add("flash");
 }
 
 let toastTimer;
@@ -712,7 +589,7 @@ function leaveChannel() {
 }
 
 /* =====================================================================
-   PTT
+   TALK (tap to start, tap again to send — names kept from the hold-to-talk version)
    ===================================================================== */
 function pttDown() {
   if (S.transmitting || S.listenOnly || !S.joined) return;
@@ -723,11 +600,13 @@ function pttDown() {
   broadcast({ type: "ptt", on: true });
   renderRoster();
   startCapture();
+  S.talkTimer = setTimeout(pttUp, CONFIG.maxTalkSeconds * 1000);
 }
 
 function pttUp() {
   if (!S.transmitting) return;
   S.transmitting = false;
+  clearTimeout(S.talkTimer);
   S.micTrack.enabled = false;
   broadcast({ type: "ptt", on: false });
   rogerBeep();
@@ -858,28 +737,22 @@ async function serverTranscribe(cap) {
   if (blob.size < 2000) return "";
   const audio = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] || ""); r.readAsDataURL(blob); });
   try {
-    const data = await authPost(CONFIG.translate.sttEndpoint, { id: uid(), lang: S.lang, mime: blob.type, audio }, CONFIG.translate.sttTimeoutMs);
+    const data = await postJSON(CONFIG.translate.sttEndpoint, { id: uid(), lang: S.lang, mime: blob.type, audio }, CONFIG.translate.sttTimeoutMs);
     return clip(data.text, 600).trim();
   } catch { return ""; }
 }
 
+
 /* =====================================================================
    TRANSLATION LAYER — translate once on the sender, then broadcast
    ===================================================================== */
-async function getToken() {
-  if (!S.sb) return "";
-  const { data } = await S.sb.auth.getSession();
-  return (data && data.session && data.session.access_token) || "";
-}
-
-async function authPost(url, body, timeoutMs) {
+async function postJSON(url, body, timeoutMs) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const token = await getToken();
     const res = await fetch(url, {
       method: "POST", signal: ctrl.signal,
-      headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
@@ -891,23 +764,18 @@ async function authPost(url, body, timeoutMs) {
 async function sendTranscript(raw, releasedAt) {
   const text = clip(raw, 600).replace(/\s+/g, " ").trim();
   if (!text || text.replace(/[^\p{L}\p{N}]/gu, "").length < 2) {
-    setCaption({ who: "YOU", main: "no caption", sub: "" });
+    setCaption({ who: "You", main: "no caption", sub: "Your voice was sent. / Su voz fue enviada." });
     return;
   }
   const id = uid();
   const targets = [...new Set([...S.peers.values()].filter((p) => p.conn && p.conn.open && p.lang).map((p) => p.lang))]
     .filter((l) => l !== S.lang);
-  setCaption({ who: "YOU", main: text, sub: targets.length ? "translating…" : "" });
+  setCaption({ who: "You said", main: text, sub: targets.length ? "translating…" : "" });
 
   let translations = {}, failed = false;
   if (targets.length) {
-    const langNames = Object.fromEntries([S.lang, ...targets].map((c) => [c, langInfo(c).label]));
     try {
-      const data = await authPost(CONFIG.translate.endpoint, {
-        id, text, from: S.lang, targets,
-        model: CONFIG.translate.model, system: CONFIG.translate.systemPrompt,
-        glossary: CONFIG.glossary.map(({ en, es }) => ({ en, es })), langNames,
-      }, CONFIG.translate.timeoutMs);
+      const data = await postJSON(CONFIG.translate.endpoint, { id, text, from: S.lang, targets }, CONFIG.translate.timeoutMs);
       translations = data && data.translations && typeof data.translations === "object" ? data.translations : {};
       failed = targets.some((t) => !translations[t]);
     } catch { failed = true; }
@@ -915,8 +783,9 @@ async function sendTranscript(raw, releasedAt) {
   const lat = Math.round(performance.now() - releasedAt);
   S.lastLatency = lat;
   broadcast({ type: "tx", id, from: S.name, srcLang: S.lang, text, translations, ts: Date.now(), lat });
-  setCaption({ who: "YOU", main: text, sub: failed ? "(not translated)" : "" });
-  addLog({ who: `YOU · ${langInfo(S.lang).short}`, main: text, sub: failed ? "(not translated)" : "" });
+  const cap = { who: "You said", main: text, sub: failed ? "(not translated)" : "" };
+  setCaption(cap);
+  addLog(cap);
   renderDiag();
 }
 
@@ -928,7 +797,7 @@ function onData(peerId, msg) {
   const p = getPeer(peerId);
   switch (msg.type) {
     case "hello":
-      p.name = clip(msg.name, 16) || p.name;
+      p.name = clip(msg.name, 20) || p.name;
       p.lang = clip(msg.lang, 16) || p.lang;
       renderRoster();
       break;
@@ -946,12 +815,12 @@ function onData(peerId, msg) {
 function onTx(p, msg) {
   const src = clip(msg.srcLang, 16), text = clip(msg.text, 600);
   if (!text) return;
-  const who = `${clip(msg.from, 16) || p.name} · ${langInfo(src).short}`;
+  const who = clip(msg.from, 20) || p.name || "Someone";
   const tr = msg.translations && typeof msg.translations === "object" ? clip(msg.translations[S.lang], 600) : "";
   const badge = isExperimental(S.lang) && tr ? CONFIG.experimental.badge : "";
   let cap;
   if (src === S.lang) cap = { who, main: text, sub: "" };
-  else if (tr) cap = { who, main: tr, sub: text, badge };
+  else if (tr) cap = { who, main: tr, sub: `Original: ${text}`, badge };
   else cap = { who, main: text, sub: "(not translated)" };
   setCaption(cap);
   addLog(cap);
@@ -960,7 +829,7 @@ function onTx(p, msg) {
 }
 
 /* =====================================================================
-   PRESETS
+   PRESETS (hidden unless CONFIG.showPresets)
    ===================================================================== */
 function presetText(p, lang) {
   return p.text[lang] || p.text[CONFIG.experimental.presetFallback] || p.text["en-US"] || p.key;
@@ -972,8 +841,8 @@ function sendPreset(key) {
   ensureAudioCtx();
   broadcast({ type: "preset", id: uid(), from: S.name, key, ts: Date.now() });
   attentionTone(p.alarm);
-  flashLcd(p.alarm);
-  const cap = { who: "YOU SENT", main: `${p.icon} ${p.key}`, sub: presetText(p, S.lang), alarm: p.alarm };
+  if (p.alarm) flashLcd();
+  const cap = { who: "You sent", main: `${p.icon} ${p.key}`, sub: presetText(p, S.lang), alarm: p.alarm };
   setCaption(cap);
   addLog(cap);
   if (navigator.vibrate) navigator.vibrate(60);
@@ -983,10 +852,10 @@ function onPreset(peer, msg) {
   const p = presetByKey(msg.key);
   if (!p) return;
   const waitMs = attentionTone(p.alarm);
-  flashLcd(p.alarm);
+  if (p.alarm) flashLcd();
   if (navigator.vibrate) navigator.vibrate(p.alarm ? [400, 150, 400, 150, 400] : [150]);
   const line = presetText(p, S.lang);
-  const cap = { who: `${clip(msg.from, 16) || peer.name}`, main: `${p.icon} ${line}`, sub: p.key, alarm: p.alarm,
+  const cap = { who: clip(msg.from, 20) || peer.name, main: `${p.icon} ${line}`, sub: p.key, alarm: p.alarm,
     badge: p.verified ? "" : "unverified" };
   setCaption(cap);
   addLog(cap);
@@ -996,59 +865,22 @@ function onPreset(peer, msg) {
 /* =====================================================================
    WIRING
    ===================================================================== */
-async function initAuth() {
-  if (!CONFIG.supabaseUrl || !window.supabase) { show("joinView"); return; }
-  S.sb = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey);
-  const { data } = await S.sb.auth.getSession();
-  S.session = data.session;
-  S.sb.auth.onAuthStateChange((_e, session) => {
-    S.session = session;
-    if (!session) { if (S.joined) leaveChannel(); show("loginView"); }
-  });
-  show(S.session ? "joinView" : "loginView");
-}
-
-$("loginForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  $("loginErr").textContent = "";
-  const { data, error } = await S.sb.auth.signInWithPassword({ email: $("loginEmail").value.trim(), password: $("loginPass").value });
-  if (error) { $("loginErr").textContent = error.message; return; }
-  S.session = data.session;
-  show("joinView");
-});
-
-$("signOutBtn").addEventListener("click", async () => {
-  if (S.sb) await S.sb.auth.signOut();
-  else leaveChannel();
-});
-
 $("joinBtn").addEventListener("click", async () => {
-  const name = $("joinName").value.trim().toUpperCase(), channel = $("joinChannel").value.trim().toUpperCase();
-  if (!name || !channel) { $("joinErr").textContent = "Callsign and channel required."; return; }
+  const name = $("joinName").value.trim();
+  if (!name) { $("joinErr").textContent = "Type your name. / Escriba su nombre."; return; }
   $("joinErr").textContent = "";
-  S.name = name; S.channel = channel; S.lang = $("joinLang").value;
-  store.set("name", name); store.set("channel", channel); store.set("lang", S.lang);
+  S.name = name;
+  store.set("name", name); store.set("lang", S.lang);
   ensureAudioCtx();
   if (window.speechSynthesis) speechSynthesis.speak(new SpeechSynthesisUtterance("")); // unlock iOS speech
   await setupMic();
-  fillLangSelect($("langSelect"));
   show("radioView");
   renderRoster(); renderDiag();
-  setCaption({ who: "", main: "", sub: "" });
   claimSlot(1);
   try { if (navigator.wakeLock) await navigator.wakeLock.request("screen"); } catch {}
-  if (!store.get("noticeSeen", false)) $("noticeModal").classList.remove("hidden");
 });
 
-$("noticeOk").addEventListener("click", () => { store.set("noticeSeen", true); $("noticeModal").classList.add("hidden"); });
-$("leaveBtn").addEventListener("click", leaveChannel);
-
-$("langSelect").addEventListener("change", (e) => {
-  S.lang = e.target.value;
-  store.set("lang", S.lang);
-  broadcast({ type: "hello", peerId: S.myId, name: S.name, lang: S.lang });
-  renderRoster(); renderDiag();
-});
+$("changeBtn").addEventListener("click", () => { if (S.transmitting) pttUp(); leaveChannel(); renderLangButtons(); });
 
 $("speakToggle").checked = S.speak;
 $("speakToggle").addEventListener("change", (e) => {
@@ -1056,32 +888,18 @@ $("speakToggle").addEventListener("change", (e) => {
   if (!S.speak && window.speechSynthesis) { S.speechQueue.length = 0; speechSynthesis.cancel(); }
 });
 
-$("sttSelect").value = S.sttMode;
-$("sttSelect").addEventListener("change", (e) => {
-  S.sttMode = e.target.value; store.set("sttMode", S.sttMode);
-  if (S.sttMode === "browser") { S.sttConflict = false; store.set("sttConflict", false); }
-  renderDiag();
-});
+// Tap once to start talking, tap again to send.
+const talkTap = () => (S.transmitting ? pttUp() : pttDown());
+$("talk").addEventListener("click", talkTap);
 
-const ptt = $("ptt");
-ptt.addEventListener("pointerdown", (e) => { e.preventDefault(); ptt.setPointerCapture(e.pointerId); pttDown(); });
-ptt.addEventListener("pointerup", pttUp);
-ptt.addEventListener("pointercancel", pttUp);
-ptt.addEventListener("lostpointercapture", pttUp);
-ptt.addEventListener("contextmenu", (e) => e.preventDefault());
+const typing = (e) => /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName);
+document.addEventListener("keydown", (e) => { if (e.code === "Space" && !e.repeat && !typing(e) && S.joined) { e.preventDefault(); talkTap(); } });
 
-const typing = (e) => /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
-document.addEventListener("keydown", (e) => { if (e.code === "Space" && !e.repeat && !typing(e) && S.joined) { e.preventDefault(); pttDown(); } });
-document.addEventListener("keyup", (e) => { if (e.code === "Space" && !typing(e)) { e.preventDefault(); pttUp(); } });
-window.addEventListener("blur", pttUp);
-if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => {};
-
-$("noticeText").textContent = CONFIG.notice;
 $("joinName").value = S.name;
-$("joinChannel").value = S.channel;
-fillLangSelect($("joinLang"));
+renderLangButtons();
 renderPresets();
-initAuth();
+setCaption({});
+show("joinView");
 </script>
 </body>
 </html>

@@ -5,8 +5,7 @@
 // TODO(Jake): pick a provider and fill in transcribe(). Until then this returns
 // an empty transcript, and the radio shows "no caption" (voice still works).
 // Never log or store the audio or the transcript.
-
-import { requireUser } from "../lib/allen-auth.js";
+// No sign-in, so this endpoint is public: other websites are refused and Netlify rate-limits each IP.
 
 const MAX_AUDIO_B64 = 4_000_000; // ~3 MB of audio, well under the 6 MB function limit
 
@@ -17,6 +16,16 @@ function reply(status, body) {
   });
 }
 
+function sameSite(req) {
+  const origin = req.headers.get("origin");
+  if (!origin) return true;
+  try {
+    return new URL(origin).host === new URL(req.url).host;
+  } catch {
+    return false;
+  }
+}
+
 // Return the transcript string for the clip. Provider key goes in a Netlify env var.
 async function transcribe(/* audioBytes, mime, lang */) {
   return "";
@@ -24,9 +33,7 @@ async function transcribe(/* audioBytes, mime, lang */) {
 
 export default async (req) => {
   if (req.method !== "POST") return reply(405, { error: "method_not_allowed" });
-
-  const auth = await requireUser(req);
-  if (auth.response) return auth.response;
+  if (!sameSite(req)) return reply(403, { error: "forbidden" });
 
   let body;
   try {
@@ -49,4 +56,8 @@ export default async (req) => {
     console.error("stt failed", err?.name);
     return reply(502, { id, error: "upstream", text: "" });
   }
+};
+
+export const config = {
+  rateLimit: { windowLimit: 30, windowSize: 60, aggregateBy: ["ip", "domain"] },
 };

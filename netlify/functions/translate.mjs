@@ -1,18 +1,62 @@
 // translate.mjs — one call per radio transmission.
-// POST { id, text, from, targets[], model, system, glossary[], langNames{} }
-//  →   { id, translations: { "<lang>": "<text>", ... } }
+// POST { id, text, from, targets[] }  →  { id, translations: { "<lang>": "<text>", ... } }
 // The client never sees Anthropic's response format. Transcript text is never logged or stored.
+//
+// There is no sign-in, so this endpoint is public. The prompt, glossary and model are fixed
+// here (not sent by the page), requests from other websites are refused, and Netlify rate-limits
+// each IP (see `config` at the bottom).
 
 import Anthropic from "@anthropic-ai/sdk";
-import { requireUser } from "../lib/allen-auth.js";
 
-const ALLOWED_MODELS = ["claude-haiku-5-5", "claude-sonnet-5-5"];
-const DEFAULT_MODEL = "claude-haiku-5-5";
-const LANG_RE = /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$/;
+const MODEL = "claude-haiku-5-5";
+
+const SYSTEM_PROMPT = [
+  "You translate short two-way radio transmissions between crew members on asphalt paving, milling, flagging and road-construction job sites.",
+  "Rules:",
+  "- Translate naturally for each target dialect (Guatemalan, Mexican or general US Spanish; American English), the way a crew member would say it on the radio. Keep it short and radio-style.",
+  "- Preserve exactly: numbers, truck and equipment numbers, station numbers (like 12+50), names, tonnages and units. Write numbers as digits.",
+  "- Never add information, warnings or explanations that are not in the source.",
+  "- Use the glossary terms. Jobsite words that Spanish-speaking crews already say in English (like \"paver\") may stay as-is.",
+  "- If part of the source is unclear or garbled, translate what is clear and append \" [?]\".",
+  "- For an experimental Mayan target (K'iche', Q'eqchi', Mam, Kaqchikel): if you cannot translate reliably, return the Spanish translation followed by \" [?]\".",
+  "- Return JSON only: one key per target language code, each value the translation.",
+].join("\n");
+
+// Term pairs the model must use. Set verified: true only after the bilingual crew review.
+const GLOSSARY = [
+  { en: "paver",           es: "la pavimentadora (el paver)",      verified: false },
+  { en: "roller",          es: "el rodillo (la aplanadora)",       verified: false },
+  { en: "tack",            es: "el riego de liga (el tack)",       verified: false },
+  { en: "milling machine", es: "la fresadora",                     verified: false },
+  { en: "lane closure",    es: "el cierre de carril",              verified: false },
+  { en: "flagger",         es: "el banderero",                     verified: false },
+  { en: "haul truck",      es: "el camión de volteo (la troca)",   verified: false },
+  { en: "dump",            es: "descargar / tirar la carga",       verified: false },
+  { en: "tons",            es: "toneladas",                        verified: false },
+  { en: "the mat",         es: "la carpeta (el tendido)",          verified: false },
+  { en: "shoulder",        es: "el acotamiento (la orilla)",       verified: false },
+  { en: "cones",           es: "los conos",                        verified: false },
+  { en: "back it up",      es: "échese para atrás / dele reversa", verified: false },
+  { en: "hold traffic",    es: "detengan el tráfico",              verified: false },
+];
+
+const LANG_NAMES = {
+  "en-US": "American English",
+  "es-GT": "Guatemalan Spanish",
+  "es-MX": "Mexican Spanish",
+  "es-US": "general US Spanish",
+  quc: "K'iche' (experimental)",
+  kek: "Q'eqchi' (experimental)",
+  mam: "Mam (experimental)",
+  cak: "Kaqchikel (experimental)",
+};
+
 const MAX_TEXT = 600;
-const MAX_TARGETS = 10;
-const MAX_SYSTEM = 8000;
-const MAX_GLOSSARY = 80;
+
+const SYSTEM =
+  SYSTEM_PROMPT +
+  "\n\nGlossary (English = Spanish). Always use these terms:\n" +
+  GLOSSARY.map((g) => `- "${g.en}" = "${g.es}"`).join("\n");
 
 function reply(status, body) {
   return new Response(JSON.stringify(body), {
@@ -21,13 +65,22 @@ function reply(status, body) {
   });
 }
 
+// Browsers send Origin on POST; refuse calls made from other websites.
+function sameSite(req) {
+  const origin = req.headers.get("origin");
+  if (!origin) return true;
+  try {
+    return new URL(origin).host === new URL(req.url).host;
+  } catch {
+    return false;
+  }
+}
+
 const str = (v, max) => (typeof v === "string" ? v.slice(0, max) : "");
 
 export default async (req) => {
   if (req.method !== "POST") return reply(405, { error: "method_not_allowed" });
-
-  const auth = await requireUser(req);
-  if (auth.response) return auth.response;
+  if (!sameSite(req)) return reply(403, { error: "forbidden" });
 
   let body;
   try {
@@ -40,27 +93,13 @@ export default async (req) => {
   const text = str(body.text, MAX_TEXT).trim();
   const from = str(body.from, 16);
   const targets = [...new Set(Array.isArray(body.targets) ? body.targets : [])]
-    .filter((t) => typeof t === "string" && LANG_RE.test(t) && t !== from)
-    .slice(0, MAX_TARGETS);
+    .filter((t) => t in LANG_NAMES && t !== from);
 
-  if (!id || !text || !LANG_RE.test(from)) return reply(400, { id, error: "bad_request", translations: {} });
+  if (!id || !text || !(from in LANG_NAMES)) return reply(400, { id, error: "bad_request", translations: {} });
   if (!targets.length) return reply(200, { id, translations: {} });
 
   const apiKey = Netlify.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) return reply(503, { id, error: "not_configured", translations: {} });
-
-  const model = ALLOWED_MODELS.includes(body.model) ? body.model : DEFAULT_MODEL;
-  const langNames = body.langNames && typeof body.langNames === "object" ? body.langNames : {};
-  const name = (code) => `${code} (${str(langNames[code], 60) || code})`;
-
-  const glossary = (Array.isArray(body.glossary) ? body.glossary : [])
-    .slice(0, MAX_GLOSSARY)
-    .map((g) => `- "${str(g?.en, 60)}" = "${str(g?.es, 80)}"`)
-    .join("\n");
-
-  const system =
-    str(body.system, MAX_SYSTEM) +
-    (glossary ? `\n\nGlossary (English = Spanish). Always use these terms:\n${glossary}` : "");
 
   // Strict schema: exactly one string per requested target language.
   const schema = {
@@ -70,6 +109,7 @@ export default async (req) => {
     additionalProperties: false,
   };
 
+  const name = (code) => `${code} (${LANG_NAMES[code]})`;
   const user =
     `Source language: ${name(from)}\n` +
     `Target languages: ${targets.map(name).join(", ")}\n` +
@@ -81,11 +121,11 @@ export default async (req) => {
 
   try {
     const msg = await client.messages.create({
-      model,
+      model: MODEL,
       max_tokens: 1024,
       thinking: { type: "disabled" },
       output_config: { effort: "low", format: { type: "json_schema", schema } },
-      system,
+      system: SYSTEM,
       messages: [{ role: "user", content: user }],
     });
 
@@ -104,4 +144,9 @@ export default async (req) => {
     console.error("translate failed", err?.name, status ?? "");
     return reply(502, { id, error: "upstream", translations: {} });
   }
+};
+
+// Up to 30 translations per minute per IP — plenty for one person on the radio.
+export const config = {
+  rateLimit: { windowLimit: 30, windowSize: 60, aggregateBy: ["ip", "domain"] },
 };
