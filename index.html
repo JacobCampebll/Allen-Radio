@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#16181b">
+<title>Allen Field Radio</title>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
+<style>
+  :root {
+    --chassis: #1d2024; --chassis-hi: #2a2e33; --edge: #0d0f11;
+    --lcd: #b7c79a; --lcd-ink: #1f2a12; --lcd-dim: #5d6e47;
+    --orange: #ff6a13; --orange-dk: #c94d05;
+    --rx: #36e05a; --tx: #ff3b30; --text: #e9ecef; --muted: #8b939c;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: #0b0c0e; color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { min-height: 100dvh; display: flex; justify-content: center; padding: 12px 12px 28px; }
+  .hidden { display: none !important; }
+  button { font: inherit; cursor: pointer; }
+
+  /* ---------- Handset ---------- */
+  .radio { width: 100%; max-width: 440px; position: relative; padding-top: 44px; }
+  .antenna { position: absolute; top: 0; right: 64px; width: 18px; height: 60px; border-radius: 9px 9px 3px 3px;
+    background: linear-gradient(90deg, #111, #34383d 45%, #111); }
+  .body { background: linear-gradient(160deg, var(--chassis-hi), var(--chassis) 40%, #16181b);
+    border: 2px solid var(--edge); border-radius: 28px; padding: 18px 16px 20px;
+    box-shadow: inset 0 2px 0 rgba(255,255,255,.06), 0 18px 40px rgba(0,0,0,.6); position: relative; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .brand { font-weight: 800; letter-spacing: .14em; font-size: 12px; color: var(--muted); }
+  .leds { display: flex; gap: 10px; align-items: center; font-size: 10px; color: var(--muted); letter-spacing: .1em; }
+  .led { width: 10px; height: 10px; border-radius: 50%; background: #2c3136; display: inline-block; margin-right: 4px;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,.6); vertical-align: middle; }
+  .led.rx.on { background: var(--rx); box-shadow: 0 0 10px var(--rx); }
+  .led.tx.on { background: var(--tx); box-shadow: 0 0 10px var(--tx); }
+  .grille { height: 34px; margin: 0 22px 12px; border-radius: 10px;
+    background: repeating-linear-gradient(90deg, #0e1012 0 4px, #24282d 4px 8px); }
+
+  /* ---------- LCD ---------- */
+  .lcd { background: var(--lcd); color: var(--lcd-ink); border-radius: 10px; padding: 10px 12px;
+    border: 3px solid #0c0d0e; box-shadow: inset 0 0 18px rgba(0,0,0,.35), 0 0 14px rgba(183,199,154,.15);
+    font-family: "Courier New", ui-monospace, monospace; text-transform: uppercase; }
+  .lcd-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 700; }
+  .lcd-dim { color: var(--lcd-dim); }
+  .roster { margin: 6px 0; font-size: 13px; line-height: 1.35; min-height: 18px; max-height: 92px; overflow-y: auto; }
+  .roster .talk::before { content: "▶ "; }
+  .roster .exp { font-size: 10px; }
+  .caption { border-top: 2px dashed var(--lcd-dim); padding-top: 6px; min-height: 64px; text-transform: none; }
+  .cap-main { font-size: 21px; font-weight: 800; line-height: 1.2; word-wrap: break-word; }
+  .cap-sub { font-size: 13px; color: var(--lcd-dim); margin-top: 3px; word-wrap: break-word; }
+  .cap-who { font-size: 11px; color: var(--lcd-dim); text-transform: uppercase; }
+  .badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px;
+    background: var(--lcd-ink); color: var(--lcd); text-transform: uppercase; margin-left: 4px; }
+  .status { font-size: 11px; margin-top: 6px; color: var(--lcd-dim); min-height: 14px; }
+  .lcd.flash-red { animation: flashRed .35s steps(1) 5; }
+  .lcd.flash-amber { animation: flashAmber .35s steps(1) 2; }
+  @keyframes flashRed { 0% { background: #ff2a1a; color: #fff; } 50% { background: var(--lcd); color: var(--lcd-ink); } }
+  @keyframes flashAmber { 0% { background: #ffb020; } 50% { background: var(--lcd); } }
+
+  .menu { display: flex; gap: 8px; margin-top: 10px; }
+  .menu label { flex: 1; font-size: 10px; letter-spacing: .1em; color: var(--muted); }
+  .menu select { width: 100%; margin-top: 3px; background: #0f1113; color: var(--lcd); border: 2px solid #33383e;
+    border-radius: 8px; padding: 8px; font: 700 14px "Courier New", monospace; }
+
+  /* ---------- PTT ---------- */
+  .ptt-wrap { display: flex; justify-content: center; margin: 16px 0 12px; }
+  .ptt { width: 168px; height: 168px; border-radius: 50%; border: 4px solid #0d0f11; touch-action: none; user-select: none;
+    -webkit-user-select: none; -webkit-touch-callout: none;
+    background: radial-gradient(circle at 35% 30%, #ff9a55, var(--orange) 45%, var(--orange-dk));
+    color: #1a0d03; font-weight: 900; font-size: 26px; letter-spacing: .08em;
+    box-shadow: 0 8px 0 #7a2f02, 0 14px 24px rgba(0,0,0,.5); transition: transform .05s, box-shadow .05s; }
+  .ptt small { display: block; font-size: 11px; font-weight: 700; letter-spacing: .1em; opacity: .75; }
+  .ptt.down { transform: translateY(6px); box-shadow: 0 2px 0 #7a2f02, 0 6px 12px rgba(0,0,0,.5); }
+  .ptt:disabled { filter: grayscale(.9) brightness(.6); }
+
+  /* ---------- Presets ---------- */
+  .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .preset { position: relative; min-height: 60px; border-radius: 12px; border: 3px solid #0d0f11; color: #fff;
+    font-weight: 900; font-size: 17px; letter-spacing: .04em; text-shadow: 0 1px 2px rgba(0,0,0,.5);
+    box-shadow: 0 4px 0 rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .preset:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.55); }
+  .preset.wide { grid-column: span 2; }
+  .preset .dot { position: absolute; top: 6px; right: 8px; width: 9px; height: 9px; border-radius: 50%;
+    background: #ffd400; border: 1px solid #000; }
+  .preset-note { font-size: 11px; color: var(--muted); margin: 6px 2px 0; }
+  .preset-note .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ffd400; border: 1px solid #000; }
+
+  /* ---------- Controls & log ---------- */
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-top: 14px; font-size: 13px; color: var(--muted); align-items: center; }
+  .controls label { display: flex; gap: 6px; align-items: center; }
+  .controls input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--orange); }
+  .controls select { background: #0f1113; color: var(--text); border: 1px solid #33383e; border-radius: 6px; padding: 4px; }
+  .linkbtn { background: none; border: 0; color: var(--muted); text-decoration: underline; padding: 0; font-size: 12px; }
+  .log { margin-top: 12px; background: #101214; border: 1px solid #2a2e33; border-radius: 10px; max-height: 210px;
+    overflow-y: auto; padding: 4px 10px; font-size: 13px; }
+  .log h3 { font-size: 11px; letter-spacing: .12em; color: var(--muted); margin: 6px 0; font-weight: 700; }
+  .log-item { border-top: 1px solid #22262a; padding: 6px 0; }
+  .log-item .t { color: var(--muted); font-size: 11px; }
+  .log-item .m { font-weight: 700; }
+  .log-item .s { color: var(--muted); }
+  .log-item.alarm .m { color: #ff6b5e; }
+  .diag { font: 11px ui-monospace, monospace; color: #6b737c; margin-top: 10px; word-break: break-word; }
+
+  /* ---------- Cards (login / join / notice) ---------- */
+  .card { width: 100%; max-width: 440px; background: var(--chassis); border: 2px solid var(--edge); border-radius: 20px;
+    padding: 22px 18px; align-self: flex-start; margin-top: 30px; }
+  .card h1 { margin: 0 0 4px; font-size: 20px; letter-spacing: .06em; }
+  .card p { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
+  .card label { display: block; font-size: 12px; letter-spacing: .1em; color: var(--muted); margin: 12px 0 4px; }
+  .card input, .card select { width: 100%; padding: 12px; font-size: 17px; border-radius: 10px; border: 2px solid #33383e;
+    background: #0f1113; color: var(--text); }
+  .bigbtn { width: 100%; margin-top: 18px; padding: 16px; font-size: 19px; font-weight: 900; letter-spacing: .08em;
+    border: 0; border-radius: 12px; background: var(--orange); color: #1a0d03; }
+  .err { color: #ff6b5e; font-size: 14px; min-height: 18px; margin-top: 8px; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.75); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 20; }
+  .modal .card { margin: 0; }
+  .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: #22262a; color: var(--text);
+    border: 1px solid #3a3f45; border-radius: 10px; padding: 10px 14px; font-size: 14px; z-index: 30; max-width: 92vw; }
+</style>
+</head>
+<body>
+
+<!-- ===================== LOGIN (shared Allen Supabase block) ===================== -->
+<section id="loginView" class="card hidden">
+  <h1>ALLEN FIELD RADIO</h1>
+  <p>Sign in with your Allen account.</p>
+  <form id="loginForm">
+    <label for="loginEmail">EMAIL</label>
+    <input id="loginEmail" type="email" autocomplete="username" required>
+    <label for="loginPass">PASSWORD</label>
+    <input id="loginPass" type="password" autocomplete="current-password" required>
+    <button class="bigbtn" type="submit">SIGN IN</button>
+    <div class="err" id="loginErr"></div>
+  </form>
+</section>
+
+<!-- ===================== JOIN ===================== -->
+<section id="joinView" class="card hidden">
+  <h1>ALLEN FIELD RADIO</h1>
+  <p>Pick a callsign, channel, and your language.</p>
+  <label for="joinName">CALLSIGN</label>
+  <input id="joinName" maxlength="16" placeholder="TRUCK 12" autocapitalize="characters">
+  <label for="joinChannel">CHANNEL</label>
+  <input id="joinChannel" maxlength="24" placeholder="PAVING-1" autocapitalize="characters">
+  <label for="joinLang">MY LANGUAGE / MI IDIOMA</label>
+  <select id="joinLang"></select>
+  <button class="bigbtn" id="joinBtn">JOIN CHANNEL</button>
+  <div class="err" id="joinErr"></div>
+</section>
+
+<!-- ===================== RADIO ===================== -->
+<main id="radioView" class="radio hidden">
+  <div class="antenna"></div>
+  <div class="body">
+    <div class="topbar">
+      <span class="brand">ALLEN FIELD RADIO</span>
+      <span class="leds"><span><i class="led rx" id="ledRx"></i>RX</span><span><i class="led tx" id="ledTx"></i>TX</span></span>
+    </div>
+    <div class="grille"></div>
+
+    <div class="lcd" id="lcd">
+      <div class="lcd-row"><span id="lcdChannel">CH --</span><span id="lcdSelf">--</span></div>
+      <div class="roster" id="roster"></div>
+      <div class="caption" id="caption">
+        <div class="cap-who" id="capWho"></div>
+        <div class="cap-main" id="capMain"></div>
+        <div class="cap-sub" id="capSub"></div>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+
+    <div class="menu">
+      <label>LANG / IDIOMA<select id="langSelect"></select></label>
+    </div>
+
+    <div class="ptt-wrap">
+      <button class="ptt" id="ptt">PUSH<small>TO TALK</small></button>
+    </div>
+
+    <div class="presets" id="presets"></div>
+    <div class="preset-note" id="presetNote"></div>
+
+    <div class="controls">
+      <label><input type="checkbox" id="speakToggle"> Speak translations</label>
+      <label>Captions <select id="sttSelect">
+        <option value="auto">Auto</option>
+        <option value="browser">Phone</option>
+        <option value="server">Server</option>
+        <option value="off">Off</option>
+      </select></label>
+      <button class="linkbtn" id="leaveBtn">Leave channel</button>
+      <button class="linkbtn" id="signOutBtn">Sign out</button>
+    </div>
+
+    <div class="log" id="logBox"><h3>RECENT TRAFFIC</h3><div id="log"></div></div>
+    <div class="diag" id="diag"></div>
+  </div>
+</main>
+
+<div class="modal hidden" id="noticeModal">
+  <div class="card">
+    <h1>HEADS UP</h1>
+    <p id="noticeText"></p>
+    <button class="bigbtn" id="noticeOk">OK</button>
+  </div>
+</div>
+<div class="toast hidden" id="toast"></div>
+
+<script>
+/* =====================================================================
+   CONFIG
+   ===================================================================== */
+const CONFIG = {
+  // Shared Allen Supabase login. Blank URL = login skipped (translations will then 401).
+  supabaseUrl: "",
+  supabaseAnonKey: "",
+
+  peerPrefix: "allen-field-radio",
+  maxSlots: 12,
+  peerOptions: { debug: 0 },
+
+  translate: {
+    endpoint: "/.netlify/functions/translate",
+    sttEndpoint: "/.netlify/functions/stt",
+    model: "claude-haiku-5-5",
+    timeoutMs: 5000,
+    sttTimeoutMs: 6000,
+    systemPrompt: [
+      "You translate short two-way radio transmissions between crew members on asphalt paving, milling, flagging and road-construction job sites.",
+      "Rules:",
+      "- Translate naturally for each target dialect (Guatemalan, Mexican or general US Spanish; American English), the way a crew member would say it on the radio. Keep it short and radio-style.",
+      "- Preserve exactly: numbers, truck and equipment numbers, station numbers (like 12+50), names, tonnages and units. Write numbers as digits.",
+      "- Never add information, warnings or explanations that are not in the source.",
+      "- Use the glossary terms. Jobsite words that Spanish-speaking crews already say in English (like \"paver\") may stay as-is.",
+      "- If part of the source is unclear or garbled, translate what is clear and append \" [?]\".",
+      "- For an experimental Mayan target (K'iche', Q'eqchi', Mam, Kaqchikel): if you cannot translate reliably, return the Spanish translation followed by \" [?]\".",
+      "- Return JSON only: one key per target language code, each value the translation."
+    ].join("\n"),
+  },
+
+  // Caption engine: "auto" tries the phone's speech recognition and falls back to the
+  // server (stt function) if it is missing or conflicts with the radio mic.
+  sttDefault: "auto",
+
+  languages: [
+    { code: "en-US", label: "English",              short: "EN" },
+    { code: "es-GT", label: "Español – Guatemala",  short: "ES-GT" },
+    { code: "es-MX", label: "Español – México",     short: "ES-MX" },
+    { code: "es-US", label: "Español – general",    short: "ES-US" },
+  ],
+
+  // Mayan languages: captions only (no speech in, no speech out), clearly badged.
+  experimental: {
+    enabled: false,
+    badge: "experimental – may be wrong",
+    languages: [
+      { code: "quc", label: "K'iche'",   short: "QUC" },
+      { code: "kek", label: "Q'eqchi'",  short: "KEK" },
+      { code: "mam", label: "Mam",       short: "MAM" },
+      { code: "cak", label: "Kaqchikel", short: "CAK" },
+    ],
+    presetFallback: "es-US", // preset text shown (not spoken) to experimental listeners
+  },
+
+  // Term pairs the model must use. Set verified: true only after the bilingual crew review.
+  glossary: [
+    { en: "paver",           es: "la pavimentadora (el paver)",      verified: false },
+    { en: "roller",          es: "el rodillo (la aplanadora)",       verified: false },
+    { en: "tack",            es: "el riego de liga (el tack)",       verified: false },
+    { en: "milling machine", es: "la fresadora",                     verified: false },
+    { en: "lane closure",    es: "el cierre de carril",              verified: false },
+    { en: "flagger",         es: "el banderero",                     verified: false },
+    { en: "haul truck",      es: "el camión de volteo (la troca)",   verified: false },
+    { en: "dump",            es: "descargar / tirar la carga",       verified: false },
+    { en: "tons",            es: "toneladas",                        verified: false },
+    { en: "the mat",         es: "la carpeta (el tendido)",          verified: false },
+    { en: "shoulder",        es: "el acotamiento (la orilla)",       verified: false },
+    { en: "cones",           es: "los conos",                        verified: false },
+    { en: "back it up",      es: "échese para atrás / dele reversa", verified: false },
+    { en: "hold traffic",    es: "detengan el tráfico",              verified: false },
+  ],
+
+  // Safety presets: fixed wording per language, no API call. alarm = loud tone + red flash.
+  presets: [
+    { key: "STOP", icon: "✋", color: "#d0021b", alarm: true, wide: true, verified: false,
+      text: { "en-US": "Stop! Stop now!", "es-GT": "¡Alto! ¡Deténgase ya!", "es-MX": "¡Alto! ¡Deténgase ya!", "es-US": "¡Alto! ¡Deténgase ya!" } },
+    { key: "SLOW", icon: "🐢", color: "#e08a00", verified: false,
+      text: { "en-US": "Slow down.", "es-GT": "Más despacio.", "es-MX": "Más despacio.", "es-US": "Más despacio." } },
+    { key: "HOLD TRAFFIC", icon: "🚧", color: "#c25e00", verified: false,
+      text: { "en-US": "Hold traffic.", "es-GT": "Detengan el tránsito.", "es-MX": "Paren el tráfico.", "es-US": "Detengan el tráfico." } },
+    { key: "CLEAR / GO", icon: "✅", color: "#1f8a3b", verified: false,
+      text: { "en-US": "Clear. Go ahead.", "es-GT": "Libre. Adelante.", "es-MX": "Libre. Adelante.", "es-US": "Libre. Adelante." } },
+    { key: "TRUCK COMING", icon: "🚚", color: "#2a62c9", verified: false,
+      text: { "en-US": "Truck coming.", "es-GT": "Viene un camión.", "es-MX": "Ahí viene un camión.", "es-US": "Viene un camión." } },
+    { key: "BACK UP", icon: "↩️", color: "#6b3fb5", verified: false,
+      text: { "en-US": "Back up.", "es-GT": "Retroceda.", "es-MX": "Dele reversa.", "es-US": "Échese para atrás." } },
+    { key: "EMERGENCY", icon: "🚨", color: "#8f0010", alarm: true, wide: true, verified: false,
+      text: { "en-US": "Emergency! Stop work. Call 911.", "es-GT": "¡Emergencia! Paren el trabajo. Llamen al 911.",
+              "es-MX": "¡Emergencia! Paren el trabajo. Llamen al 911.", "es-US": "¡Emergencia! Paren el trabajo. Llamen al 911." } },
+  ],
+
+  captionLogSize: 10,
+  notice: "Translations are an aid. Use preset buttons for safety calls.\n\nLas traducciones son una ayuda. Use los botones de seguridad para avisos de seguridad.",
+};
+
+/* =====================================================================
+   STATE
+   ===================================================================== */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("afr." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("afr." + k, JSON.stringify(v)); } catch {} },
+};
+
+const S = {
+  sb: null, session: null,
+  name: store.get("name", ""), channel: store.get("channel", ""),
+  lang: store.get("lang", "en-US"),
+  speak: store.get("speak", true),
+  sttMode: store.get("sttMode", CONFIG.sttDefault),
+  sttConflict: store.get("sttConflict", false),
+  peer: null, myId: "", slot: 0, joined: false,
+  audioCtx: null, micStream: null, micTrack: null, outStream: null, listenOnly: false, analyser: null,
+  peers: new Map(),            // peerId -> { id, name, lang, call, conn, audio, talking }
+  transmitting: false, capture: null,
+  log: [], speechQueue: [], speaking: false, lastLatency: null,
+};
+
+const allLanguages = () => CONFIG.languages.concat(CONFIG.experimental.enabled ? CONFIG.experimental.languages : []);
+const langInfo = (code) => allLanguages().find((l) => l.code === code)
+  || CONFIG.experimental.languages.find((l) => l.code === code)
+  || { code, label: code, short: String(code || "?").toUpperCase() };
+const isExperimental = (code) => CONFIG.experimental.languages.some((l) => l.code === code);
+const presetByKey = (key) => CONFIG.presets.find((p) => p.key === key);
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "main";
+const clip = (v, n) => (typeof v === "string" ? v.slice(0, n) : "");
+const $ = (id) => document.getElementById(id);
+if (!allLanguages().some((l) => l.code === S.lang)) S.lang = "en-US";
+
+/* =====================================================================
+   RENDERING
+   ===================================================================== */
+function show(view) {
+  for (const v of ["loginView", "joinView", "radioView"]) $(v).classList.toggle("hidden", v !== view);
+}
+
+function fillLangSelect(sel) {
+  sel.innerHTML = "";
+  for (const l of allLanguages()) {
+    const o = document.createElement("option");
+    o.value = l.code;
+    o.textContent = isExperimental(l.code) ? `${l.label} (${CONFIG.experimental.badge})` : l.label;
+    sel.appendChild(o);
+  }
+  sel.value = S.lang;
+}
+
+function renderRoster() {
+  $("lcdChannel").textContent = `CH ${S.channel || "--"}${S.slot ? " · " + S.slot : ""}`;
+  $("lcdSelf").textContent = `${S.name || "--"} · ${langInfo(S.lang).short}`;
+  const box = $("roster");
+  box.innerHTML = "";
+  const list = [...S.peers.values()].filter((p) => p.conn && p.conn.open);
+  if (!list.length) {
+    box.innerHTML = `<div class="lcd-dim">${S.joined ? "NO ONE ELSE ON CHANNEL" : "CONNECTING…"}</div>`;
+  }
+  for (const p of list) {
+    const d = document.createElement("div");
+    d.className = p.talking ? "talk" : "";
+    d.textContent = `${p.name || "?"} · ${langInfo(p.lang).short}`;
+    if (isExperimental(p.lang)) { const b = document.createElement("span"); b.className = "badge exp"; b.textContent = "EXP"; d.appendChild(b); }
+    box.appendChild(d);
+  }
+  const anyTalking = list.some((p) => p.talking);
+  $("ledRx").classList.toggle("on", anyTalking);
+  $("ledTx").classList.toggle("on", S.transmitting);
+  $("ptt").disabled = S.listenOnly;
+  $("ptt").innerHTML = S.listenOnly ? "LISTEN<small>ONLY · NO MIC</small>" : S.transmitting ? "TALKING<small>RELEASE TO SEND</small>" : "PUSH<small>TO TALK</small>";
+  $("ptt").classList.toggle("down", S.transmitting);
+}
+
+function setStatus(msg) { $("status").textContent = msg || ""; }
+
+function setCaption({ who = "", main = "", sub = "", badge = "" }) {
+  $("capWho").textContent = who;
+  $("capMain").textContent = main;
+  $("capSub").textContent = sub;
+  if (badge) { const b = document.createElement("span"); b.className = "badge"; b.textContent = badge; $("capWho").appendChild(b); }
+}
+
+function addLog(entry) {
+  S.log.unshift({ ...entry, time: new Date() });
+  S.log.length = Math.min(S.log.length, CONFIG.captionLogSize);
+  const box = $("log");
+  box.innerHTML = "";
+  for (const e of S.log) {
+    const d = document.createElement("div");
+    d.className = "log-item" + (e.alarm ? " alarm" : "");
+    const t = document.createElement("div"); t.className = "t";
+    t.textContent = `${e.time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })} · ${e.who || ""}${e.badge ? " · " + e.badge : ""}`;
+    const m = document.createElement("div"); m.className = "m"; m.textContent = e.main;
+    d.append(t, m);
+    if (e.sub) { const s = document.createElement("div"); s.className = "s"; s.textContent = e.sub; d.appendChild(s); }
+    box.appendChild(d);
+  }
+}
+
+function renderPresets() {
+  const box = $("presets");
+  box.innerHTML = "";
+  let unverified = 0;
+  for (const p of CONFIG.presets) {
+    const b = document.createElement("button");
+    b.className = "preset" + (p.wide ? " wide" : "");
+    b.style.background = p.color;
+    b.textContent = `${p.icon} ${p.key}`;
+    if (!p.verified) { unverified++; const dot = document.createElement("span"); dot.className = "dot"; dot.title = "Unverified wording"; b.appendChild(dot); }
+    b.addEventListener("click", () => sendPreset(p.key));
+    box.appendChild(b);
+  }
+  $("presetNote").innerHTML = unverified ? `<span class="dot"></span> = Spanish wording not yet verified by crew reviewer` : "";
+}
+
+function renderDiag() {
+  const engine = currentEngine();
+  const parts = [
+    `id ${S.myId || "-"}`,
+    `captions: ${engine}${S.sttConflict ? " (phone STT conflicted with mic → server)" : ""}`,
+    S.lastLatency != null ? `last caption latency ${S.lastLatency} ms` : "",
+    CONFIG.supabaseUrl ? "" : "login not configured",
+  ].filter(Boolean);
+  $("diag").textContent = parts.join(" · ");
+}
+
+function flashLcd(alarm) {
+  const lcd = $("lcd");
+  lcd.classList.remove("flash-red", "flash-amber");
+  void lcd.offsetWidth;
+  lcd.classList.add(alarm ? "flash-red" : "flash-amber");
+}
+
+let toastTimer;
+function toast(msg, ms = 4000) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.remove("hidden");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.add("hidden"), ms);
+}
+
+/* =====================================================================
+   AUDIO: tones, roger beep, speech output
+   ===================================================================== */
+function ensureAudioCtx() {
+  if (!S.audioCtx) S.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (S.audioCtx.state === "suspended") S.audioCtx.resume();
+  return S.audioCtx;
+}
+
+function tone(freq, start, dur, gain = 0.15, type = "sine") {
+  const ctx = ensureAudioCtx();
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type; o.frequency.value = freq;
+  const t0 = ctx.currentTime + start;
+  g.gain.setValueAtTime(0, t0);
+  g.gain.linearRampToValueAtTime(gain, t0 + 0.01);
+  g.gain.setValueAtTime(gain, t0 + dur - 0.02);
+  g.gain.linearRampToValueAtTime(0, t0 + dur);
+  o.connect(g).connect(ctx.destination);
+  o.start(t0); o.stop(t0 + dur + 0.02);
+}
+
+function rogerBeep() { tone(1400, 0, 0.07, 0.12); tone(1000, 0.08, 0.09, 0.12); }
+
+// Returns ms until the tone is done, so speech can start after it.
+function attentionTone(alarm) {
+  if (alarm) {
+    for (let i = 0; i < 3; i++) { tone(1800, i * 0.28, 0.12, 0.5, "square"); tone(1200, i * 0.28 + 0.13, 0.12, 0.5, "square"); }
+    return 900;
+  }
+  tone(880, 0, 0.12, 0.25); tone(1320, 0.14, 0.18, 0.25);
+  return 380;
+}
+
+function pickVoice(lang) {
+  const voices = window.speechSynthesis ? speechSynthesis.getVoices() : [];
+  const norm = (s) => String(s).replace("_", "-").toLowerCase();
+  const want = norm(lang), base = want.split("-")[0];
+  return voices.find((v) => norm(v.lang) === want)
+    || voices.find((v) => norm(v.lang) === base + "-us")
+    || voices.find((v) => norm(v.lang) === base + "-mx")
+    || voices.find((v) => norm(v.lang).startsWith(base + "-") || norm(v.lang) === base)
+    || null;
+}
+
+const someoneTalking = () => [...S.peers.values()].some((p) => p.talking) || S.transmitting;
+
+// Translations wait their turn and never overlap; they also wait while anyone is keyed up.
+function queueSpeech(text, lang) {
+  if (!window.speechSynthesis || isExperimental(lang)) return;
+  S.speechQueue.push({ text, lang });
+  pumpSpeech();
+}
+
+function pumpSpeech() {
+  if (S.speaking || !S.speechQueue.length || someoneTalking()) return;
+  const item = S.speechQueue.shift();
+  speakNow(item.text, item.lang, () => { S.speaking = false; pumpSpeech(); });
+  S.speaking = true;
+}
+
+function speakNow(text, lang, done) {
+  const u = new SpeechSynthesisUtterance(text);
+  const v = pickVoice(lang);
+  if (v) u.voice = v;
+  u.lang = v ? v.lang : lang;
+  u.rate = 1.0;
+  let finished = false;
+  const finish = () => { if (!finished) { finished = true; done && done(); } };
+  u.onend = finish; u.onerror = finish;
+  setTimeout(finish, 1500 + text.length * 120); // some browsers never fire onend
+  speechSynthesis.speak(u);
+}
+
+// Presets jump the queue.
+function speakPriority(text, lang) {
+  if (!window.speechSynthesis || isExperimental(lang)) return;
+  speechSynthesis.cancel();
+  S.speaking = true;
+  speakNow(text, lang, () => { S.speaking = false; pumpSpeech(); });
+}
+
+/* =====================================================================
+   RADIO CORE: mic, slot claiming, calls, data connections
+   ===================================================================== */
+async function setupMic() {
+  const ctx = ensureAudioCtx();
+  try {
+    S.micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    S.micTrack = S.micStream.getAudioTracks()[0];
+    S.micTrack.enabled = false;
+    S.outStream = S.micStream;
+    S.listenOnly = false;
+    S.analyser = ctx.createAnalyser();
+    S.analyser.fftSize = 512;
+    ctx.createMediaStreamSource(S.micStream).connect(S.analyser);
+  } catch (e) {
+    // Listen-only: send a silent track so calls still connect.
+    S.outStream = ctx.createMediaStreamDestination().stream;
+    S.listenOnly = true;
+    toast("Mic blocked — listen-only mode. / Micrófono bloqueado — solo escuchar.");
+  }
+}
+
+function slotId(n) { return `${CONFIG.peerPrefix}-${slug(S.channel)}-${n}`; }
+
+function claimSlot(n) {
+  if (n > CONFIG.maxSlots) { setStatus("CHANNEL FULL"); return; }
+  setStatus(`CLAIMING SLOT ${n}…`);
+  const peer = new Peer(slotId(n), CONFIG.peerOptions);
+  peer.on("open", (id) => {
+    S.peer = peer; S.myId = id; S.slot = n; S.joined = true;
+    setStatus("ON AIR");
+    renderRoster(); renderDiag();
+    dialExisting();
+  });
+  peer.on("error", (err) => {
+    if (err.type === "unavailable-id") { peer.destroy(); claimSlot(n + 1); return; }
+    if (err.type === "peer-unavailable") {
+      // Empty slot while dialing — expected. Abandon our pending dial to it.
+      const m = /peer\s+(\S+)/i.exec(err.message || "");
+      if (m) abandonDial(m[1].replace(/[^\w-]/g, ""));
+      return;
+    }
+    setStatus(`ERR ${err.type}`.toUpperCase());
+  });
+  peer.on("disconnected", () => { if (S.joined && !peer.destroyed) { setStatus("RECONNECTING…"); peer.reconnect(); } });
+  peer.on("call", (call) => onIncomingCall(call));
+  peer.on("connection", (conn) => onIncomingConn(conn));
+}
+
+// Newcomer dials every other slot; existing peers never dial newcomers.
+// A link only becomes the peer's active call/conn once it is live (stream / open), so a
+// dial to an empty slot never blocks someone who claims that slot later.
+function dialExisting() {
+  for (let i = 1; i <= CONFIG.maxSlots; i++) {
+    if (i === S.slot) continue;
+    const id = slotId(i);
+    const entry = getPeer(id);
+    if (!entry.call && !entry.outCall) {
+      entry.outCall = S.peer.call(id, S.outStream, { metadata: { name: S.name, lang: S.lang } });
+      entry.outCall._init = S.myId;
+      wireCall(entry.outCall, id);
+    }
+    if (!entry.conn && !entry.outConn) {
+      entry.outConn = S.peer.connect(id, { reliable: true, metadata: { name: S.name, lang: S.lang } });
+      entry.outConn._init = S.myId;
+      wireConn(entry.outConn, id);
+    }
+  }
+}
+
+function getPeer(id) {
+  if (!S.peers.has(id)) S.peers.set(id, { id, name: "", lang: "", call: null, conn: null, outCall: null, outConn: null, audio: null, talking: false });
+  return S.peers.get(id);
+}
+
+function closeLink(l) { try { l && l.close(); } catch {} }
+
+function dropPeer(id) {
+  const p = S.peers.get(id);
+  if (!p) return;
+  S.peers.delete(id);
+  for (const l of [p.call, p.conn, p.outCall, p.outConn]) closeLink(l);
+  if (p.audio) { p.audio.srcObject = null; p.audio.remove(); }
+  renderRoster();
+  pumpSpeech();
+}
+
+function abandonDial(id) {
+  const p = S.peers.get(id);
+  if (!p) return;
+  if (p.outCall && p.outCall !== p.call) closeLink(p.outCall);
+  if (p.outConn && p.outConn !== p.conn) closeLink(p.outConn);
+  p.outCall = p.outConn = null;
+  if (!p.call && !p.conn) dropPeer(id);
+}
+
+// Make a live link the peer's active one. If two newcomers dialed each other and both links
+// went live, both sides keep the one initiated by the lower peer id and close the other.
+function adopt(entry, kind, link) {
+  const cur = entry[kind];
+  if (cur === link) return true;
+  if (cur && cur.open) {
+    const keepNew = link._init < cur._init;
+    if (!keepNew) { closeLink(link); return false; }
+    entry[kind] = link;
+    closeLink(cur);
+    return true;
+  }
+  entry[kind] = link;
+  return true;
+}
+
+function onIncomingCall(call) {
+  call._init = call.peer;
+  getPeer(call.peer);
+  call.answer(S.outStream);
+  wireCall(call, call.peer);
+}
+
+function onIncomingConn(conn) {
+  conn._init = conn.peer;
+  getPeer(conn.peer);
+  wireConn(conn, conn.peer);
+}
+
+function wireCall(call, id) {
+  call.on("stream", (stream) => {
+    const entry = getPeer(id);
+    if (!adopt(entry, "call", call)) return;
+    if (!entry.audio) {
+      entry.audio = document.createElement("audio");
+      entry.audio.autoplay = true;
+      entry.audio.setAttribute("playsinline", "");
+      document.body.appendChild(entry.audio);
+    }
+    entry.audio.srcObject = stream;
+    entry.audio.play().catch(() => {});
+  });
+  call.on("close", () => {
+    const e = S.peers.get(id);
+    if (!e) return;
+    if (e.outCall === call) e.outCall = null;
+    if (e.call === call) dropPeer(id);
+  });
+  call.on("error", () => {});
+}
+
+function wireConn(conn, id) {
+  conn.on("open", () => {
+    const entry = getPeer(id);
+    if (!adopt(entry, "conn", conn)) return;
+    conn.send({ type: "hello", peerId: S.myId, name: S.name, lang: S.lang });
+    renderRoster();
+  });
+  // Accept data on any link to this peer: the winning link can deliver before its own "open" fires here.
+  conn.on("data", (msg) => onData(id, msg));
+  conn.on("close", () => {
+    const e = S.peers.get(id);
+    if (!e) return;
+    if (e.outConn === conn) e.outConn = null;
+    if (e.conn === conn) dropPeer(id);
+  });
+  conn.on("error", () => {});
+}
+
+function broadcast(msg) {
+  for (const p of S.peers.values()) if (p.conn && p.conn.open) { try { p.conn.send(msg); } catch {} }
+}
+
+function leaveChannel() {
+  S.joined = false;
+  for (const id of [...S.peers.keys()]) dropPeer(id);
+  if (S.peer) { try { S.peer.destroy(); } catch {} }
+  S.peer = null; S.myId = ""; S.slot = 0;
+  if (S.micStream) S.micStream.getTracks().forEach((t) => t.stop());
+  S.micStream = S.micTrack = S.outStream = null;
+  show("joinView");
+}
+
+/* =====================================================================
+   PTT
+   ===================================================================== */
+function pttDown() {
+  if (S.transmitting || S.listenOnly || !S.joined) return;
+  S.transmitting = true;
+  if (window.speechSynthesis) speechSynthesis.cancel();
+  S.speaking = false;
+  S.micTrack.enabled = true;
+  broadcast({ type: "ptt", on: true });
+  renderRoster();
+  startCapture();
+}
+
+function pttUp() {
+  if (!S.transmitting) return;
+  S.transmitting = false;
+  S.micTrack.enabled = false;
+  broadcast({ type: "ptt", on: false });
+  rogerBeep();
+  renderRoster();
+  pumpSpeech();
+  const releasedAt = performance.now();
+  stopCapture().then((text) => sendTranscript(text, releasedAt)).catch(() => {});
+}
+
+/* =====================================================================
+   TRANSLATION LAYER — capture (speech → text)
+   ===================================================================== */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+function currentEngine() {
+  if (isExperimental(S.lang) || S.sttMode === "off" || S.listenOnly) return "off";
+  if (S.sttMode === "browser") return SR ? "browser" : "off";
+  if (S.sttMode === "server") return window.MediaRecorder ? "server" : "off";
+  if (SR && !S.sttConflict) return "browser";
+  return window.MediaRecorder ? "server" : "off";
+}
+
+function startCapture() {
+  const engine = currentEngine();
+  const cap = { engine, started: performance.now(), peak: 0, finals: "", interim: "", rec: null, recorder: null, chunks: [], levelTimer: null };
+  S.capture = cap;
+  if (S.analyser) {
+    const buf = new Float32Array(S.analyser.fftSize);
+    cap.levelTimer = setInterval(() => {
+      S.analyser.getFloatTimeDomainData(buf);
+      for (const x of buf) cap.peak = Math.max(cap.peak, Math.abs(x));
+    }, 100);
+  }
+  if (engine === "browser") {
+    try {
+      const rec = new SR();
+      rec.lang = S.lang; rec.interimResults = true; rec.continuous = true; rec.maxAlternatives = 1;
+      rec.onresult = (ev) => {
+        let interim = "";
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          const r = ev.results[i];
+          if (r.isFinal) cap.finals += r[0].transcript + " ";
+          else interim += r[0].transcript;
+        }
+        cap.interim = interim;
+        if (S.capture === cap) setCaption({ who: "YOU (LIVE)", main: (cap.finals + interim).trim() });
+      };
+      rec.onerror = (ev) => {
+        cap.error = ev.error;
+        if (["audio-capture", "not-allowed", "service-not-allowed"].includes(ev.error) && S.sttMode === "auto") markConflict(ev.error);
+      };
+      cap.ended = new Promise((res) => { rec.onend = res; });
+      rec.start();
+      cap.rec = rec;
+    } catch { cap.engine = "off"; }
+  } else if (engine === "server") {
+    try {
+      const mime = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"].find((m) => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || "";
+      const recorder = new MediaRecorder(new MediaStream([S.micTrack]), mime ? { mimeType: mime } : undefined);
+      recorder.ondataavailable = (e) => { if (e.data && e.data.size) cap.chunks.push(e.data); };
+      cap.ended = new Promise((res) => { recorder.onstop = res; });
+      recorder.start();
+      cap.recorder = recorder;
+    } catch { cap.engine = "off"; }
+  }
+}
+
+async function stopCapture() {
+  const cap = S.capture;
+  if (!cap) return "";
+  clearInterval(cap.levelTimer);
+  const held = performance.now() - cap.started;
+  let text = "";
+  if (cap.rec) {
+    try { cap.rec.stop(); } catch {}
+    await Promise.race([cap.ended, new Promise((r) => setTimeout(r, 1500))]);
+    text = (cap.finals + " " + cap.interim).trim();
+    checkMicHealth(cap, held, text);
+  } else if (cap.recorder) {
+    try { cap.recorder.stop(); } catch {}
+    await Promise.race([cap.ended, new Promise((r) => setTimeout(r, 1000))]);
+    text = await serverTranscribe(cap);
+  }
+  if (S.capture === cap) S.capture = null;
+  return text;
+}
+
+// Phone speech recognition can steal the mic from WebRTC (seen on iPhones). Signs:
+// the radio track ended/muted, or recognition heard words while the radio track carried silence.
+function checkMicHealth(cap, held, text) {
+  const dead = !S.micTrack || S.micTrack.readyState === "ended" || S.micTrack.muted;
+  const silentWhileHeard = S.analyser && held > 1200 && text && cap.peak < 0.004;
+  if ((dead || silentWhileHeard) && S.sttMode !== "browser") markConflict(dead ? "track-ended" : "silent-track");
+  if (dead) reacquireMic();
+}
+
+function markConflict(reason) {
+  if (S.sttConflict) return;
+  S.sttConflict = true;
+  store.set("sttConflict", true);
+  console.warn("STT/mic conflict:", reason);
+  toast("This phone can't caption and transmit at once — switching captions to server mode.");
+  renderDiag();
+}
+
+async function reacquireMic() {
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    const track = s.getAudioTracks()[0];
+    track.enabled = S.transmitting;
+    for (const p of S.peers.values()) {
+      const pc = p.call && p.call.peerConnection;
+      if (!pc) continue;
+      for (const sender of pc.getSenders()) if (sender.track === null || sender.track.kind === "audio") await sender.replaceTrack(track);
+    }
+    if (S.micTrack) S.micTrack.stop();
+    S.micStream = s; S.micTrack = track; S.outStream = s;
+    const ctx = ensureAudioCtx();
+    S.analyser = ctx.createAnalyser(); S.analyser.fftSize = 512;
+    ctx.createMediaStreamSource(s).connect(S.analyser);
+  } catch {
+    toast("Mic lost. Leave and rejoin the channel.");
+  }
+}
+
+async function serverTranscribe(cap) {
+  const blob = new Blob(cap.chunks, { type: (cap.recorder && cap.recorder.mimeType) || "audio/webm" });
+  if (blob.size < 2000) return "";
+  const audio = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] || ""); r.readAsDataURL(blob); });
+  try {
+    const data = await authPost(CONFIG.translate.sttEndpoint, { id: uid(), lang: S.lang, mime: blob.type, audio }, CONFIG.translate.sttTimeoutMs);
+    return clip(data.text, 600).trim();
+  } catch { return ""; }
+}
+
+/* =====================================================================
+   TRANSLATION LAYER — translate once on the sender, then broadcast
+   ===================================================================== */
+async function getToken() {
+  if (!S.sb) return "";
+  const { data } = await S.sb.auth.getSession();
+  return (data && data.session && data.session.access_token) || "";
+}
+
+async function authPost(url, body, timeoutMs) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const token = await getToken();
+    const res = await fetch(url, {
+      method: "POST", signal: ctrl.signal,
+      headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "http_" + res.status);
+    return data;
+  } finally { clearTimeout(timer); }
+}
+
+async function sendTranscript(raw, releasedAt) {
+  const text = clip(raw, 600).replace(/\s+/g, " ").trim();
+  if (!text || text.replace(/[^\p{L}\p{N}]/gu, "").length < 2) {
+    setCaption({ who: "YOU", main: "no caption", sub: "" });
+    return;
+  }
+  const id = uid();
+  const targets = [...new Set([...S.peers.values()].filter((p) => p.conn && p.conn.open && p.lang).map((p) => p.lang))]
+    .filter((l) => l !== S.lang);
+  setCaption({ who: "YOU", main: text, sub: targets.length ? "translating…" : "" });
+
+  let translations = {}, failed = false;
+  if (targets.length) {
+    const langNames = Object.fromEntries([S.lang, ...targets].map((c) => [c, langInfo(c).label]));
+    try {
+      const data = await authPost(CONFIG.translate.endpoint, {
+        id, text, from: S.lang, targets,
+        model: CONFIG.translate.model, system: CONFIG.translate.systemPrompt,
+        glossary: CONFIG.glossary.map(({ en, es }) => ({ en, es })), langNames,
+      }, CONFIG.translate.timeoutMs);
+      translations = data && data.translations && typeof data.translations === "object" ? data.translations : {};
+      failed = targets.some((t) => !translations[t]);
+    } catch { failed = true; }
+  }
+  const lat = Math.round(performance.now() - releasedAt);
+  S.lastLatency = lat;
+  broadcast({ type: "tx", id, from: S.name, srcLang: S.lang, text, translations, ts: Date.now(), lat });
+  setCaption({ who: "YOU", main: text, sub: failed ? "(not translated)" : "" });
+  addLog({ who: `YOU · ${langInfo(S.lang).short}`, main: text, sub: failed ? "(not translated)" : "" });
+  renderDiag();
+}
+
+/* =====================================================================
+   TRANSLATION LAYER — receive
+   ===================================================================== */
+function onData(peerId, msg) {
+  if (!msg || typeof msg !== "object") return;
+  const p = getPeer(peerId);
+  switch (msg.type) {
+    case "hello":
+      p.name = clip(msg.name, 16) || p.name;
+      p.lang = clip(msg.lang, 16) || p.lang;
+      renderRoster();
+      break;
+    case "ptt":
+      p.talking = !!msg.on;
+      if (!msg.on) rogerBeep();
+      renderRoster();
+      if (!msg.on) pumpSpeech();
+      break;
+    case "tx": onTx(p, msg); break;
+    case "preset": onPreset(p, msg); break;
+  }
+}
+
+function onTx(p, msg) {
+  const src = clip(msg.srcLang, 16), text = clip(msg.text, 600);
+  if (!text) return;
+  const who = `${clip(msg.from, 16) || p.name} · ${langInfo(src).short}`;
+  const tr = msg.translations && typeof msg.translations === "object" ? clip(msg.translations[S.lang], 600) : "";
+  const badge = isExperimental(S.lang) && tr ? CONFIG.experimental.badge : "";
+  let cap;
+  if (src === S.lang) cap = { who, main: text, sub: "" };
+  else if (tr) cap = { who, main: tr, sub: text, badge };
+  else cap = { who, main: text, sub: "(not translated)" };
+  setCaption(cap);
+  addLog(cap);
+  if (typeof msg.lat === "number") { S.lastLatency = msg.lat; renderDiag(); }
+  if (S.speak && tr && src !== S.lang) queueSpeech(tr, S.lang);
+}
+
+/* =====================================================================
+   PRESETS
+   ===================================================================== */
+function presetText(p, lang) {
+  return p.text[lang] || p.text[CONFIG.experimental.presetFallback] || p.text["en-US"] || p.key;
+}
+
+function sendPreset(key) {
+  const p = presetByKey(key);
+  if (!p) return;
+  ensureAudioCtx();
+  broadcast({ type: "preset", id: uid(), from: S.name, key, ts: Date.now() });
+  attentionTone(p.alarm);
+  flashLcd(p.alarm);
+  const cap = { who: "YOU SENT", main: `${p.icon} ${p.key}`, sub: presetText(p, S.lang), alarm: p.alarm };
+  setCaption(cap);
+  addLog(cap);
+  if (navigator.vibrate) navigator.vibrate(60);
+}
+
+function onPreset(peer, msg) {
+  const p = presetByKey(msg.key);
+  if (!p) return;
+  const waitMs = attentionTone(p.alarm);
+  flashLcd(p.alarm);
+  if (navigator.vibrate) navigator.vibrate(p.alarm ? [400, 150, 400, 150, 400] : [150]);
+  const line = presetText(p, S.lang);
+  const cap = { who: `${clip(msg.from, 16) || peer.name}`, main: `${p.icon} ${line}`, sub: p.key, alarm: p.alarm,
+    badge: p.verified ? "" : "unverified" };
+  setCaption(cap);
+  addLog(cap);
+  setTimeout(() => speakPriority(line, S.lang), waitMs);
+}
+
+/* =====================================================================
+   WIRING
+   ===================================================================== */
+async function initAuth() {
+  if (!CONFIG.supabaseUrl || !window.supabase) { show("joinView"); return; }
+  S.sb = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey);
+  const { data } = await S.sb.auth.getSession();
+  S.session = data.session;
+  S.sb.auth.onAuthStateChange((_e, session) => {
+    S.session = session;
+    if (!session) { if (S.joined) leaveChannel(); show("loginView"); }
+  });
+  show(S.session ? "joinView" : "loginView");
+}
+
+$("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("loginErr").textContent = "";
+  const { data, error } = await S.sb.auth.signInWithPassword({ email: $("loginEmail").value.trim(), password: $("loginPass").value });
+  if (error) { $("loginErr").textContent = error.message; return; }
+  S.session = data.session;
+  show("joinView");
+});
+
+$("signOutBtn").addEventListener("click", async () => {
+  if (S.sb) await S.sb.auth.signOut();
+  else leaveChannel();
+});
+
+$("joinBtn").addEventListener("click", async () => {
+  const name = $("joinName").value.trim().toUpperCase(), channel = $("joinChannel").value.trim().toUpperCase();
+  if (!name || !channel) { $("joinErr").textContent = "Callsign and channel required."; return; }
+  $("joinErr").textContent = "";
+  S.name = name; S.channel = channel; S.lang = $("joinLang").value;
+  store.set("name", name); store.set("channel", channel); store.set("lang", S.lang);
+  ensureAudioCtx();
+  if (window.speechSynthesis) speechSynthesis.speak(new SpeechSynthesisUtterance("")); // unlock iOS speech
+  await setupMic();
+  fillLangSelect($("langSelect"));
+  show("radioView");
+  renderRoster(); renderDiag();
+  setCaption({ who: "", main: "", sub: "" });
+  claimSlot(1);
+  try { if (navigator.wakeLock) await navigator.wakeLock.request("screen"); } catch {}
+  if (!store.get("noticeSeen", false)) $("noticeModal").classList.remove("hidden");
+});
+
+$("noticeOk").addEventListener("click", () => { store.set("noticeSeen", true); $("noticeModal").classList.add("hidden"); });
+$("leaveBtn").addEventListener("click", leaveChannel);
+
+$("langSelect").addEventListener("change", (e) => {
+  S.lang = e.target.value;
+  store.set("lang", S.lang);
+  broadcast({ type: "hello", peerId: S.myId, name: S.name, lang: S.lang });
+  renderRoster(); renderDiag();
+});
+
+$("speakToggle").checked = S.speak;
+$("speakToggle").addEventListener("change", (e) => {
+  S.speak = e.target.checked; store.set("speak", S.speak);
+  if (!S.speak && window.speechSynthesis) { S.speechQueue.length = 0; speechSynthesis.cancel(); }
+});
+
+$("sttSelect").value = S.sttMode;
+$("sttSelect").addEventListener("change", (e) => {
+  S.sttMode = e.target.value; store.set("sttMode", S.sttMode);
+  if (S.sttMode === "browser") { S.sttConflict = false; store.set("sttConflict", false); }
+  renderDiag();
+});
+
+const ptt = $("ptt");
+ptt.addEventListener("pointerdown", (e) => { e.preventDefault(); ptt.setPointerCapture(e.pointerId); pttDown(); });
+ptt.addEventListener("pointerup", pttUp);
+ptt.addEventListener("pointercancel", pttUp);
+ptt.addEventListener("lostpointercapture", pttUp);
+ptt.addEventListener("contextmenu", (e) => e.preventDefault());
+
+const typing = (e) => /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
+document.addEventListener("keydown", (e) => { if (e.code === "Space" && !e.repeat && !typing(e) && S.joined) { e.preventDefault(); pttDown(); } });
+document.addEventListener("keyup", (e) => { if (e.code === "Space" && !typing(e)) { e.preventDefault(); pttUp(); } });
+window.addEventListener("blur", pttUp);
+if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => {};
+
+$("noticeText").textContent = CONFIG.notice;
+$("joinName").value = S.name;
+$("joinChannel").value = S.channel;
+fillLangSelect($("joinLang"));
+renderPresets();
+initAuth();
+</script>
+</body>
+</html>
