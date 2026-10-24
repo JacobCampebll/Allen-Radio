@@ -9,7 +9,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-const MODEL = "gemini-2.5-flash";
+const MODEL = "gemini-3.8-flash";
 const MAX_AUDIO_B64 = 4_000_000; // ~3 MB of audio, well under the 6 MB function limit
 const LANG_NAMES = { en: "English", es: "Spanish" };
 
@@ -61,7 +61,7 @@ export default async (req) => {
     const res = await ai.models.generateContent({
       model: MODEL,
       contents: [{ role: "user", parts: [{ inlineData: { mimeType: mime, data: body.audio } }, { text: instructions(lang) }] }],
-      config: { temperature: 0, maxOutputTokens: 400, thinkingConfig: { thinkingBudget: 0 } },
+      config: { temperature: 0, maxOutputTokens: 400 },
     });
     const text = (res.text || "").replace(/^["'“”]+|["'“”]+$/g, "").trim().slice(0, 600);
     return reply(200, { id, text });
