@@ -62,7 +62,7 @@ export default async (req) => {
     const res = await ai.models.generateContent({
       model: MODEL,
       contents: [{ role: "user", parts: [{ inlineData: { mimeType: mime, data: body.audio } }, { text: instructions(lang) }] }],
-      config: { temperature: 0, maxOutputTokens: 400, abortSignal: AbortSignal.timeout(8500) },
+      config: { temperature: 0, maxOutputTokens: 400, thinkingConfig: { thinkingLevel: "MINIMAL" }, abortSignal: AbortSignal.timeout(8500) },
     });
     const text = (res.text || "").replace(/^["'“”]+|["'“”]+$/g, "").trim().slice(0, 600);
     return reply(200, { id, text });
