@@ -1,26 +1,24 @@
-// stt.mjs — server speech-to-text fallback, used when a phone's built-in recognizer is
-// missing or fights the radio for the mic (and for all iPhones if CONFIG.iosServerCaptions).
+// stt.mjs — server speech-to-text. Used by iPhones (Apple's recognizer can fight the radio for
+// the mic) and by any phone whose built-in recognizer is missing or conflicts.
 // POST { id, lang, mime, audio: <base64> }  →  { id, text }
 //
-// Uses OpenAI transcription (gpt-4o-mini-transcribe). It needs your own OPENAI_API_KEY in
-// Netlify env vars: Netlify AI Gateway only forwards JSON requests, and this endpoint takes a
-// file upload, so the gateway's injected key gets a 400. Without a key, captions from phones on
-// this fallback show "no caption" and voice still works.
+// Uses Google Gemini. The SDK reads GEMINI_API_KEY (your own key, set in Netlify env vars);
+// until that is set, Netlify AI Gateway injects a key and base URL so it still works.
 // Never log or store the audio or the transcript.
 // No sign-in, so this endpoint is public: other websites are refused and Netlify rate-limits each IP.
 
-import OpenAI, { toFile } from "openai";
+import { GoogleGenAI } from "@google/genai";
 
-const MODEL = "gpt-4o-mini-transcribe";
+const MODEL = "gemini-2.5-flash";
 const MAX_AUDIO_B64 = 4_000_000; // ~3 MB of audio, well under the 6 MB function limit
+const LANG_NAMES = { en: "English", es: "Spanish" };
 
-// Vocabulary hint so jobsite words and numbers come out right.
-const PROMPT =
-  "Two-way radio on an asphalt paving crew. Words like paver, roller, tack, milling machine, " +
-  "flagger, haul truck, lane closure, shoulder, cones, the mat, tons, station 12+50, truck 12. " +
-  "Spanish may include troca, la pavimentadora, el rodillo, el banderero, toneladas.";
-
-const EXT = { "audio/mp4": "m4a", "audio/aac": "m4a", "audio/webm": "webm", "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/wav": "wav" };
+const instructions = (lang) =>
+  `Transcribe this two-way radio clip from an asphalt paving crew, word for word, in ${LANG_NAMES[lang] || "English or Spanish"}. ` +
+  "Jobsite words include paver, roller, tack, milling machine, flagger, haul truck, lane closure, shoulder, cones, " +
+  "the mat, tons, troca, la pavimentadora, el rodillo, el banderero, toneladas. " +
+  "Write numbers as digits (truck 12, station 12+50, 200 tons). " +
+  "Output only the transcript, with no quotes, labels or notes. If there is no clear speech, output nothing.";
 
 function reply(status, body) {
   return new Response(JSON.stringify(body), {
@@ -52,30 +50,26 @@ export default async (req) => {
 
   const id = typeof body.id === "string" ? body.id.slice(0, 64) : "";
   const lang = typeof body.lang === "string" ? body.lang.slice(0, 2).toLowerCase() : "";
-  const mime = (typeof body.mime === "string" ? body.mime : "audio/webm").split(";")[0].trim().toLowerCase();
+  const mime = (typeof body.mime === "string" && body.mime ? body.mime : "audio/webm").split(";")[0].trim().toLowerCase();
   if (typeof body.audio !== "string" || !body.audio || body.audio.length > MAX_AUDIO_B64) {
     return reply(400, { id, error: "bad_audio", text: "" });
   }
-  if (!process.env.OPENAI_API_KEY) return reply(503, { id, error: "not_configured", text: "" });
+  if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_API_KEY) return reply(503, { id, error: "not_configured", text: "" });
 
   try {
-    // Go straight to OpenAI: Netlify AI Gateway can also inject OPENAI_BASE_URL, and it rejects uploads.
-    const client = new OpenAI({ baseURL: "https://api.openai.com/v1", timeout: 8000, maxRetries: 0 });
-    const file = await toFile(Buffer.from(body.audio, "base64"), `clip.${EXT[mime] || "webm"}`, { type: mime });
-    const result = await client.audio.transcriptions.create({
-      file,
+    const ai = new GoogleGenAI({ httpOptions: { timeout: 8000 } });
+    const res = await ai.models.generateContent({
       model: MODEL,
-      ...(lang === "en" || lang === "es" ? { language: lang } : {}),
-      prompt: PROMPT,
-      response_format: "json",
+      contents: [{ role: "user", parts: [{ inlineData: { mimeType: mime, data: body.audio } }, { text: instructions(lang) }] }],
+      config: { temperature: 0, maxOutputTokens: 400, thinkingConfig: { thinkingBudget: 0 } },
     });
-    return reply(200, { id, text: (result.text || "").trim().slice(0, 600) });
+    const text = (res.text || "").replace(/^["'“”]+|["'“”]+$/g, "").trim().slice(0, 600);
+    return reply(200, { id, text });
   } catch (err) {
     // Log only the error class/status — never the audio or transcript.
-    const status = err instanceof OpenAI.APIError ? err.status : undefined;
+    const status = typeof err?.status === "number" ? err.status : undefined;
     console.error("stt failed", err?.name, status ?? "");
-    const reason = err instanceof OpenAI.APIError ? String(err.message || "").slice(0, 200) : "";
-    return reply(502, { id, error: "upstream", upstreamStatus: status ?? null, reason, text: "" });
+    return reply(502, { id, error: "upstream", upstreamStatus: status ?? null, reason: String(err?.message || "").slice(0, 200), text: "" });
   }
 };
 
