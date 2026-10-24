@@ -34,9 +34,19 @@
   .err { color: var(--red); font-size: 15px; min-height: 20px; margin-top: 8px; text-align: center; }
 
   /* Radio */
-  .who { text-align: center; font-size: 15px; color: var(--muted); min-height: 22px; }
-  .who b { color: var(--ink); }
-  .who .live { color: var(--green); font-weight: 800; }
+  .roster { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; }
+  .roster-head { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: var(--muted); }
+  .roster-head .count { color: var(--ink); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: var(--bg);
+    border: 1px solid var(--line); font-size: 15px; font-weight: 700; }
+  .chip .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--green); }
+  .chip .lg { font-size: 11px; font-weight: 800; color: var(--muted); }
+  .chip.me { border-color: var(--orange); }
+  .chip.live { background: #e3f7ea; border-color: var(--green); }
+  .chip.live .dot { animation: pulse .8s ease-in-out infinite alternate; }
+  @keyframes pulse { to { transform: scale(1.6); } }
+  .alone { font-size: 14px; color: var(--muted); margin-top: 6px; }
   .talk-wrap { display: flex; justify-content: center; margin: 18px 0; }
   .talk { width: 210px; height: 210px; border-radius: 50%; border: 0; color: #1a0d03; font-weight: 900; font-size: 26px; line-height: 1.15;
     background: radial-gradient(circle at 35% 30%, #ff9a55, var(--orange) 50%, var(--orange-dk));
@@ -92,7 +102,11 @@
 
 <!-- ===================== RADIO ===================== -->
 <main id="radioView" class="wrap hidden">
-  <div class="who" id="who">Connecting…</div>
+  <div class="roster">
+    <div class="roster-head"><span id="rosterTitle">Connecting…</span><span class="count" id="rosterCount"></span></div>
+    <div class="chips" id="chips"></div>
+    <div class="alone hidden" id="alone">No one else on yet. / Nadie más conectado.</div>
+  </div>
 
   <div class="talk-wrap"><button class="talk" id="talk"></button></div>
 
@@ -220,15 +234,23 @@ function renderLangButtons() {
   }
 }
 
-// "Who's on" line + talk button state. (Name kept from the original radio.)
+// Everyone on the channel, you first. The person talking gets a pulsing green chip.
 function renderRoster() {
-  const list = [...S.peers.values()].filter((p) => p.conn && p.conn.open);
-  const talker = list.find((p) => p.talking);
-  const who = $("who");
-  if (!S.joined) who.textContent = "Connecting…";
-  else if (talker) who.innerHTML = `<span class="live">● ${esc(talker.name || "Someone")} is talking…</span>`;
-  else if (!list.length) who.textContent = "No one else on the radio yet / Nadie más conectado";
-  else who.innerHTML = "On the radio: " + list.map((p) => `<b>${esc(p.name || "?")}</b> (${esc(langInfo(p.lang).short)})`).join(", ");
+  const list = [...S.peers.values()].filter((p) => p.conn && p.conn.open)
+    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  const people = [{ name: S.name, lang: S.lang, talking: S.transmitting, me: true }, ...list];
+  $("rosterTitle").textContent = !S.joined ? "Connecting… / Conectando…" : "On the channel / En el canal";
+  $("rosterCount").textContent = S.joined ? String(people.length) : "";
+  const chips = $("chips");
+  chips.innerHTML = "";
+  for (const p of people) {
+    const c = document.createElement("span");
+    c.className = "chip" + (p.me ? " me" : "") + (p.talking ? " live" : "");
+    c.innerHTML = `<span class="dot"></span>${esc(p.name || "?")}${p.me ? " (you)" : ""} <span class="lg">${esc(langInfo(p.lang).short)}</span>`;
+    if (p.talking) c.title = "Talking";
+    chips.appendChild(c);
+  }
+  $("alone").classList.toggle("hidden", !S.joined || list.length > 0);
 
   const talk = $("talk");
   talk.disabled = S.listenOnly || !S.joined;
@@ -240,7 +262,7 @@ function renderRoster() {
 
 function setStatus(msg) {
   if (!msg || msg === "ON AIR") return;
-  if (!S.joined) $("who").textContent = /^CLAIMING/.test(msg) ? "Connecting…" : msg;
+  if (!S.joined) $("rosterTitle").textContent = /^CLAIMING/.test(msg) ? "Connecting… / Conectando…" : msg;
   else toast(msg.charAt(0) + msg.slice(1).toLowerCase());
 }
 
