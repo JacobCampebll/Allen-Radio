@@ -1,10 +1,11 @@
-// stt.mjs — server speech-to-text. iPhones always use this (their built-in recognizer can
-// fight the radio for the mic); other phones fall back to it if their recognizer is missing
-// or conflicts.
+// stt.mjs — server speech-to-text fallback, used when a phone's built-in recognizer is
+// missing or fights the radio for the mic (and for all iPhones if CONFIG.iosServerCaptions).
 // POST { id, lang, mime, audio: <base64> }  →  { id, text }
 //
-// Uses OpenAI transcription through Netlify AI Gateway: Netlify injects OPENAI_API_KEY and
-// OPENAI_BASE_URL at runtime, so there is no OpenAI account or key to manage.
+// Uses OpenAI transcription (gpt-4o-mini-transcribe). It needs your own OPENAI_API_KEY in
+// Netlify env vars: Netlify AI Gateway only forwards JSON requests, and this endpoint takes a
+// file upload, so the gateway's injected key gets a 400. Without a key, captions from phones on
+// this fallback show "no caption" and voice still works.
 // Never log or store the audio or the transcript.
 // No sign-in, so this endpoint is public: other websites are refused and Netlify rate-limits each IP.
 
@@ -58,7 +59,7 @@ export default async (req) => {
   if (!process.env.OPENAI_API_KEY) return reply(503, { id, error: "not_configured", text: "" });
 
   try {
-    const client = new OpenAI({ timeout: 8000, maxRetries: 0 }); // key + base URL injected by Netlify
+    const client = new OpenAI({ timeout: 8000, maxRetries: 0 }); // reads OPENAI_API_KEY
     const file = await toFile(Buffer.from(body.audio, "base64"), `clip.${EXT[mime] || "webm"}`, { type: mime });
     const result = await client.audio.transcriptions.create({
       file,
