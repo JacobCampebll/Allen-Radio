@@ -81,7 +81,7 @@
     box-shadow: 0 3px 0 rgba(0,0,0,.25); }
   .preset:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.25); }
   .preset.wide { grid-column: span 2; }
-  .preset .dot { position: absolute; top: 6px; right: 8px; width: 9px; height: 9px; border-radius: 50%; background: #ffd400; }
+  .preset .dot { position: absolute; top: 4px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: #ffd400; }
 
   /* Footer + talk button (stays at the bottom of the screen) */
   .foot { margin-top: 18px; text-align: center; font-size: 14px; color: var(--muted); }
@@ -103,6 +103,18 @@
   .install b { display: block; margin-bottom: 2px; }
   .install .x { position: absolute; top: 6px; right: 6px; background: none; border: 0; font-size: 18px; color: var(--muted); padding: 6px 10px; }
   .install .ibtn { margin-top: 8px; border: 0; border-radius: 10px; background: var(--orange); color: #fff; font-weight: 700; padding: 10px 16px; }
+  .preset { min-height: 54px !important; font-size: 15px !important; }
+  .carpick { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-top: 8px; }
+  .swatches { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+  .swatch-btn { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: #fff;
+    font: 700 16px "Source Sans 3", system-ui; color: var(--ink); text-align: left; }
+  .swatch-btn i, .swatch { display: inline-block; width: 26px; height: 26px; border-radius: 6px; border: 1px solid rgba(0,0,0,.25); flex: none; vertical-align: middle; }
+  .cap-main .swatch { width: 34px; height: 34px; margin-left: 10px; vertical-align: -6px; }
+  .item .swatch { width: 18px; height: 18px; margin-left: 8px; vertical-align: -3px; }
+  .carpick .linkbtn { display: block; margin: 8px auto 0; }
+  .sec-row { display: flex; justify-content: space-between; align-items: center; margin: 6px 0 8px; }
+  .sec-row .sec { margin: 0; }
+  .clearbtn { background: #fff; border: 1px solid #f1b5b5; color: var(--red); border-radius: 8px; padding: 6px 10px; font: 700 13px "Source Sans 3", system-ui; }
   .preset-note { font-size: 13px; color: var(--muted); margin: 6px 2px 16px; }
   .preset-note i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #ffd400; border: 1px solid #c9a800; }
   .toast { position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%); background: var(--bar); color: #fff;
@@ -143,10 +155,15 @@
     <div id="safety" class="hidden">
       <div class="sec">Safety / Seguridad</div>
       <div class="presets" id="presets"></div>
+      <div class="carpick hidden" id="carPick">
+        <div class="sec">Last car color / Color del último carro</div>
+        <div class="swatches" id="swatches"></div>
+        <button class="linkbtn" id="carCancel">Cancel / Cancelar</button>
+      </div>
       <div class="preset-note hidden" id="presetNote"><i></i> Spanish wording not yet checked / Español sin revisar</div>
     </div>
 
-    <div class="sec">Latest / Último</div>
+    <div class="sec-row"><span class="sec">Latest / Último</span><button class="clearbtn" id="clearChat">Clear chat · Borrar</button></div>
     <div class="card" id="card">
       <div class="cap-empty" id="capEmpty">Translations show up here. / Las traducciones aparecen aquí.</div>
       <div class="cap-who" id="capWho"></div>
@@ -205,18 +222,24 @@ const CONFIG = {
   presets: [
     { key: "STOP", es: "ALTO", icon: "✋", color: "#d0021b", alarm: true, wide: true, verified: false,
       text: { "en-US": "Stop! Stop now!", "es-US": "¡Alto! ¡Deténgase ya!" } },
-    { key: "SLOW", es: "DESPACIO", icon: "🐢", color: "#e08a00", verified: false,
-      text: { "en-US": "Slow down.", "es-US": "Más despacio." } },
-    { key: "HOLD TRAFFIC", es: "PAREN TRÁFICO", icon: "🚧", color: "#c25e00", verified: false,
-      text: { "en-US": "Hold traffic.", "es-US": "Detengan el tráfico." } },
-    { key: "CLEAR / GO", es: "LIBRE", icon: "✅", color: "#1f8a3b", verified: false,
-      text: { "en-US": "Clear. Go ahead.", "es-US": "Libre. Adelante." } },
-    { key: "TRUCK COMING", es: "VIENE CAMIÓN", icon: "🚚", color: "#2a62c9", verified: false,
-      text: { "en-US": "Truck coming.", "es-US": "Viene un camión." } },
-    { key: "BACK UP", es: "REVERSA", icon: "↩️", color: "#6b3fb5", verified: false,
-      text: { "en-US": "Back up.", "es-US": "Échese para atrás." } },
-    { key: "EMERGENCY", es: "EMERGENCIA", icon: "🚨", color: "#8f0010", alarm: true, verified: false,
-      text: { "en-US": "Emergency! Stop work. Call 911.", "es-US": "¡Emergencia! Paren el trabajo. Llamen al 911." } },
+    // Pick the car's color first; {color} is filled in for each listener's language.
+    { key: "LAST CAR", es: "ÚLTIMO CARRO", icon: "🚗", color: "#1f2937", pickColor: true, verified: false,
+      text: { "en-US": "Last car: {color}.", "es-US": "Último carro: {color}." } },
+    { key: "ALL CLEAR", es: "TODO LIBRE", icon: "✅", color: "#1f8a3b", verified: false,
+      text: { "en-US": "All clear.", "es-US": "Todo libre." } },
+    { key: "EMERGENCY", es: "EMERGENCIA", icon: "🚨", color: "#8f0010", alarm: true, wide: true, verified: false,
+      text: { "en-US": "Emergency! Stop work.", "es-US": "¡Emergencia! Paren el trabajo." } },
+  ],
+
+  carColors: [
+    { key: "white",  en: "white",  es: "blanco",   hex: "#ffffff" },
+    { key: "black",  en: "black",  es: "negro",    hex: "#111111" },
+    { key: "gray",   en: "gray",   es: "gris",     hex: "#9ca3af" },
+    { key: "red",    en: "red",    es: "rojo",     hex: "#d0021b" },
+    { key: "blue",   en: "blue",   es: "azul",     hex: "#1d4ed8" },
+    { key: "green",  en: "green",  es: "verde",    hex: "#15803d" },
+    { key: "yellow", en: "yellow", es: "amarillo", hex: "#facc15" },
+    { key: "brown",  en: "brown",  es: "café",     hex: "#8b5a2b" },
   ],
 
   captionLogSize: 10,
@@ -309,13 +332,14 @@ function setStatus(msg) {
   else toast(msg.charAt(0) + msg.slice(1).toLowerCase());
 }
 
-function setCaption({ who = "", main = "", sub = "", badge = "" }) {
+function setCaption({ who = "", main = "", sub = "", badge = "", swatch = "" }) {
   $("capEmpty").classList.toggle("hidden", !!(who || main || sub));
   const now = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   $("capWho").textContent = who && main ? `${who} · ${now}` : who;
   $("capMain").textContent = main;
   $("capSub").textContent = sub;
   if (badge) { const b = document.createElement("span"); b.className = "badge"; b.textContent = badge; $("capWho").appendChild(b); }
+  if (swatch) { const c = document.createElement("span"); c.className = "swatch"; c.style.background = swatch; $("capMain").appendChild(c); }
 }
 
 function addLog(entry) {
@@ -330,6 +354,7 @@ function addLog(entry) {
     const t = document.createElement("div"); t.className = "t";
     t.textContent = `${e.who || ""} · ${e.time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
     const m = document.createElement("div"); m.className = "m"; m.textContent = e.main;
+    if (e.swatch) { const c = document.createElement("span"); c.className = "swatch"; c.style.background = e.swatch; m.appendChild(c); }
     d.append(t, m);
     if (e.sub) { const s = document.createElement("div"); s.className = "s"; s.textContent = e.sub; d.appendChild(s); }
     box.appendChild(d);
@@ -360,10 +385,21 @@ function renderPresets() {
     b.style.background = p.color;
     b.textContent = `${p.icon} ${p.key} · ${p.es}`;
     if (!p.verified) { const dot = document.createElement("span"); dot.className = "dot"; dot.title = "Unverified wording"; b.appendChild(dot); }
-    b.addEventListener("click", () => sendPreset(p.key));
+    b.addEventListener("click", () => (p.pickColor ? toggleCarPick() : sendPreset(p.key)));
     box.appendChild(b);
   }
+  const sw = $("swatches");
+  sw.innerHTML = "";
+  for (const c of CONFIG.carColors) {
+    const b = document.createElement("button");
+    b.className = "swatch-btn";
+    b.innerHTML = `<i style="background:${c.hex}"></i>${esc(c.en[0].toUpperCase() + c.en.slice(1))} · ${esc(c.es)}`;
+    b.addEventListener("click", () => { $("carPick").classList.add("hidden"); sendPreset("LAST CAR", c.key); });
+    sw.appendChild(b);
+  }
 }
+
+function toggleCarPick() { $("carPick").classList.toggle("hidden"); }
 
 function renderDiag() {
   const parts = [
@@ -888,6 +924,7 @@ function onData(peerId, msg) {
       break;
     case "tx": onTx(p, msg); break;
     case "preset": onPreset(p, msg); break;
+    case "clear": clearScreen(); toast(`${clip(msg.from, 20) || p.name || "Someone"} cleared the chat · borró el chat`); break;
   }
 }
 
@@ -909,21 +946,27 @@ function onTx(p, msg) {
 /* =====================================================================
    PRESETS (hidden unless CONFIG.showPresets)
    ===================================================================== */
-function presetText(p, lang) {
-  return p.text[lang] || p.text["en-US"] || p.key;
+const carColor = (key) => CONFIG.carColors.find((c) => c.key === key);
+
+function presetText(p, lang, colorKey) {
+  const line = p.text[lang] || p.text["en-US"] || p.key;
+  const c = carColor(colorKey);
+  return line.replace("{color}", c ? (lang === "es-US" ? c.es : c.en) : "?");
 }
 
-function sendPreset(key) {
+function sendPreset(key, colorKey) {
   const p = presetByKey(key);
   if (!p) return;
+  const color = p.pickColor && carColor(colorKey) ? colorKey : undefined;
   ensureAudioCtx();
   const id = uid();
-  broadcast({ type: "preset", id, from: S.name, key, ts: Date.now() });
+  broadcast({ type: "preset", id, from: S.name, key, color, ts: Date.now() });
   const other = S.lang === "es-US" ? "en-US" : "es-US";
-  saveToLog({ id, kind: "safety", text: presetText(p, S.lang), translations: { [other]: presetText(p, other) }, failed: false });
+  saveToLog({ id, kind: "safety", text: presetText(p, S.lang, color), translations: { [other]: presetText(p, other, color) }, failed: false });
   attentionTone(p.alarm);
   if (p.alarm) flashLcd();
-  const cap = { who: "You sent", main: `${p.icon} ${p.key}`, sub: presetText(p, S.lang), alarm: p.alarm };
+  const cap = { who: "You sent", main: `${p.icon} ${presetText(p, S.lang, color)}`, sub: `${p.key} · ${p.es}`, alarm: p.alarm,
+    swatch: color ? carColor(color).hex : "" };
   setCaption(cap);
   addLog(cap);
   if (navigator.vibrate) navigator.vibrate(60);
@@ -935,9 +978,10 @@ function onPreset(peer, msg) {
   const waitMs = attentionTone(p.alarm);
   if (p.alarm) flashLcd();
   if (navigator.vibrate) navigator.vibrate(p.alarm ? [400, 150, 400, 150, 400] : [150]);
-  const line = presetText(p, S.lang);
-  const cap = { who: clip(msg.from, 20) || peer.name, main: `${p.icon} ${line}`, sub: p.key, alarm: p.alarm,
-    badge: p.verified ? "" : "unverified" };
+  const color = p.pickColor && carColor(msg.color) ? msg.color : undefined;
+  const line = presetText(p, S.lang, color);
+  const cap = { who: clip(msg.from, 20) || peer.name, main: `${p.icon} ${line}`, sub: `${p.key} · ${p.es}`, alarm: p.alarm,
+    badge: p.verified ? "" : "unverified", swatch: color ? carColor(color).hex : "" };
   setCaption(cap);
   addLog(cap);
   setTimeout(() => speakPriority(line, S.lang), waitMs);
@@ -987,6 +1031,25 @@ $("installBtn").addEventListener("click", async () => {
 });
 $("installClose").addEventListener("click", () => { store.set("installTipClosed", true); $("installTip").classList.add("hidden"); });
 if (IS_IOS) showInstallTip("Tap Share ⬆︎ then “Add to Home Screen”. / Toque Compartir ⬆︎ y “Agregar a inicio”.", false);
+
+$("carCancel").addEventListener("click", () => $("carPick").classList.add("hidden"));
+
+// Clear chat: wipes the chat on every phone in the crew and erases the crew's saved 24-hour log.
+function clearScreen() {
+  S.log = [];
+  $("log").innerHTML = "";
+  setCaption({});
+}
+
+$("clearChat").addEventListener("click", async () => {
+  if (!confirm(`Clear the chat for everyone on the ${S.channel} crew and erase the crew log? This can't be undone.\n\n¿Borrar el chat para toda la cuadrilla ${S.channel} y el registro? No se puede deshacer.`)) return;
+  broadcast({ type: "clear", from: S.name, ts: Date.now() });
+  clearScreen();
+  try {
+    const res = await fetch(`${CONFIG.translate.logEndpoint}?crew=${encodeURIComponent(S.channel)}`, { method: "DELETE" });
+    toast(res.ok ? "Chat cleared · Chat borrado" : "Screen cleared, but the crew log couldn't be erased.");
+  } catch { toast("Screen cleared, but the crew log couldn't be erased."); }
+});
 
 $("speakToggle").checked = S.speak;
 $("speakToggle").addEventListener("change", (e) => {
