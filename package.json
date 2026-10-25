@@ -4,6 +4,7 @@
   "type": "module",
   "dependencies": {
     "@anthropic-ai/sdk": "0.135.0",
-    "@google/genai": "2.28.0"
+    "@google/genai": "2.28.0",
+    "@netlify/blobs": "11.1.4"
   }
 }

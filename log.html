@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16181b">
+<title>Crew Log · Allen Field Radio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #f6f6f4; --card: #fff; --ink: #1b1b1b; --muted: #7a7f85; --line: #e6e6e2; --bar: #16181b; --orange: #ff6a13; --red: #d0021b; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Source Sans 3", system-ui, -apple-system, sans-serif; }
+  .hidden { display: none !important; }
+  .top { background: var(--bar); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; }
+  .top img { height: 30px; display: block; }
+  .top span { color: #c9cdd2; font-size: 14px; font-weight: 600; }
+  .strip { height: 5px; background: var(--orange); }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 24px; margin: 4px 0 4px; }
+  .lead { color: var(--muted); margin: 0 0 14px; }
+  .sec { font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; margin: 0 0 6px; display: block; }
+  .form { display: grid; grid-template-columns: 1fr; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .form .full { grid-column: span 1; }
+  select, input { width: 100%; padding: 12px; font: 600 17px "Source Sans 3", system-ui; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); }
+  .btns { display: flex; gap: 10px; }
+  button { font: 700 17px "Source Sans 3", system-ui; border: 0; border-radius: 12px; padding: 14px 18px; cursor: pointer; }
+  .primary { background: var(--orange); color: #fff; flex: 1; }
+  .ghost { background: #fff; border: 1px solid var(--line); color: var(--ink); }
+  .ghost:disabled { opacity: .5; }
+  .danger { background: #fff; border: 1px solid #f1b5b5; color: var(--red); width: 100%; }
+  .ok { color: #1f7a3a; min-height: 20px; margin: 10px 2px; font-weight: 600; }
+  .err { color: var(--red); min-height: 20px; margin: 10px 2px; }
+  .summary { color: var(--muted); font-weight: 600; margin: 4px 2px 10px; }
+  .item { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+  .item.safety { border-left: 6px solid var(--red); }
+  .meta { font-size: 13px; color: var(--muted); font-weight: 700; }
+  .said { font-size: 18px; font-weight: 600; margin: 4px 0 2px; }
+  .tr { font-size: 15px; color: #555b61; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 6px; background: #ffe2e2; color: var(--red); margin-left: 6px; }
+  .empty { color: var(--muted); text-align: center; padding: 30px 0; }
+  a.back { display: inline-block; margin-top: 18px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header class="top"><img src="allen-logo-white.png" alt="The Allen Company"><span>Crew Log</span></header>
+<div class="strip"></div>
+
+<div class="wrap">
+  <h1>Crew log</h1>
+  <p class="lead">Everything said on the radio in the last 24 hours, in both languages. Older messages are deleted automatically.</p>
+
+  <div class="form">
+    <div><label class="sec" for="crew">Crew</label>
+      <select id="crew"><option value="all">All crews</option><option>Beaver</option><option>Powell</option><option>Ian</option><option>Blake</option></select></div>
+    <div class="full btns"><button class="primary" id="show">Show log</button><button class="ghost" id="csv" disabled>Download CSV</button></div>
+    <div class="full"><button class="danger" id="erase">Erase log</button></div>
+  </div>
+  <div class="err" id="err"></div>
+  <div class="ok" id="ok"></div>
+  <div class="summary" id="summary"></div>
+  <div id="list"></div>
+  <a class="back" href="./">← Back to the radio</a>
+</div>
+
+<script>
+/* ---------- state ---------- */
+const $ = (id) => document.getElementById(id);
+const LANG_SHORT = { "en-US": "EN", "es-US": "ES" };
+let entries = [], shownCrew = "";
+const TZ = "America/New_York";
+const dateOf = (iso) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(iso));                    // 2026-10-25
+const timeOf = (iso) => new Date(iso).toLocaleTimeString("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit", second: "2-digit" });
+const stampOf = (iso) => new Date(iso).toLocaleString("en-US", { timeZone: TZ, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+/* ---------- rendering ---------- */
+function render() {
+  const list = $("list");
+  list.innerHTML = "";
+  $("summary").textContent = `${entries.length} message${entries.length === 1 ? "" : "s"} · ${shownCrew === "all" ? "All crews" : shownCrew + " crew"} · last 24 hours`;
+  if (!entries.length) { list.innerHTML = '<div class="empty">No messages in the last 24 hours.</div>'; return; }
+  for (const e of entries) {
+    const d = document.createElement("div");
+    d.className = "item" + (e.kind === "safety" ? " safety" : "");
+    const meta = document.createElement("div"); meta.className = "meta";
+    meta.textContent = `${stampOf(e.at)} · ${e.crew} · ${e.who} (${LANG_SHORT[e.lang] || "?"})`;
+    if (e.kind === "safety") { const t = document.createElement("span"); t.className = "tag"; t.textContent = "SAFETY BUTTON"; meta.appendChild(t); }
+    const said = document.createElement("div"); said.className = "said"; said.textContent = e.text;
+    d.append(meta, said);
+    const other = Object.entries(e.translations || {}).filter(([l]) => l !== e.lang);
+    for (const [l, t] of other) { const tr = document.createElement("div"); tr.className = "tr"; tr.textContent = `${LANG_SHORT[l] || l}: ${t}`; d.appendChild(tr); }
+    if (e.failed) { const tr = document.createElement("div"); tr.className = "tr"; tr.textContent = "(not translated)"; d.appendChild(tr); }
+    list.appendChild(d);
+  }
+}
+
+function csvCell(v) { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }
+
+/* ---------- wiring ---------- */
+
+$("show").addEventListener("click", async () => {
+  $("err").textContent = ""; $("ok").textContent = "";
+  const crew = $("crew").value;
+  $("show").disabled = true; $("show").textContent = "Loading…";
+  try {
+    const res = await fetch(`/.netlify/functions/log?crew=${encodeURIComponent(crew)}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error("Couldn't load the log. Try again.");
+    entries = data.entries || []; shownCrew = crew;
+    $("csv").disabled = !entries.length;
+    render();
+  } catch (e) {
+    $("err").textContent = e.message; entries = []; $("list").innerHTML = ""; $("summary").textContent = ""; $("csv").disabled = true;
+  } finally { $("show").disabled = false; $("show").textContent = "Show log"; }
+});
+
+$("erase").addEventListener("click", async () => {
+  const crew = $("crew").value;
+  const which = crew === "all" ? "ALL crews" : `the ${crew} crew`;
+  if (!confirm(`Erase every saved message for ${which}? This can't be undone.`)) return;
+  $("err").textContent = ""; $("ok").textContent = "";
+  $("erase").disabled = true; $("erase").textContent = "Erasing…";
+  try {
+    const res = await fetch(`/.netlify/functions/log?crew=${encodeURIComponent(crew)}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error("Couldn't erase the log. Try again.");
+    entries = []; shownCrew = crew; $("csv").disabled = true; render();
+    $("ok").textContent = `Erased ${data.removed || 0} message${data.removed === 1 ? "" : "s"} for ${which}.`;
+  } catch (e) { $("err").textContent = e.message; }
+  finally { $("erase").disabled = false; $("erase").textContent = "Erase log"; }
+});
+
+$("csv").addEventListener("click", () => {
+  const rows = [["Date", "Time", "Crew", "Who", "Language", "Type", "Said", "English", "Spanish", "Translated"]];
+  for (const e of entries) rows.push([dateOf(e.at), timeOf(e.at), e.crew, e.who, LANG_SHORT[e.lang] || "", e.kind === "safety" ? "Safety button" : "Voice",
+    e.text, e.lang === "en-US" ? e.text : e.translations?.["en-US"] || "", e.lang === "es-US" ? e.text : e.translations?.["es-US"] || "", e.failed ? "No" : "Yes"]);
+  const blob = new Blob(["﻿" + rows.map((r) => r.map(csvCell).join(",")).join("\r\n")], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `crew-log-${shownCrew}-${dateOf(new Date().toISOString())}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+</script>
+</body>
+</html>

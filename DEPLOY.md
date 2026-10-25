@@ -15,10 +15,12 @@ C:\Users\<you>\Projects\allen-field-radio\
 ## How it works now
 
 - Everyone types their name and picks English or Español. There's no sign-in. The Spanish is neutral Latin American, so crews from Mexico, Guatemala and Honduras all understand it.
-- One channel for everyone: `CONFIG.channel` in `index.html`, default `ALLEN-MAIN`.
+- Four crews, each its own channel: Beaver, Powell, Ian, Blake (`CONFIG.crews` in `index.html`; the log function has the same list in `netlify/functions/log.mjs`).
+- Safety buttons (STOP, SLOW, HOLD TRAFFIC, CLEAR / GO, TRUCK COMING, BACK UP, EMERGENCY) play an alert and show/speak fixed wording in each person's language.
+- Every message is saved, timestamped, to the crew log (Netlify Blobs store `crew-log`) and **deleted after 24 hours**: on each new message, and by the hourly `log-cleanup` scheduled function. Foreman view and CSV download of the last 24 hours at `/log.html` with an **Erase log** button (no passcode: anyone with the link can read or erase the last 24 hours).
+- Installable: Add to Home Screen gives an Allen Radio icon and full-screen app.
 - Tap the big button to talk and tap again to send. The mic turns itself off after 30 s (`CONFIG.maxTalkSeconds`).
 - The translation shows in the card under the button, with the original underneath and older messages listed below.
-- Safety buttons are built in but hidden. Set `CONFIG.showPresets: true` to show them.
 
 ## 1. Settings you might change
 
@@ -92,4 +94,4 @@ The page shows a small gray line at the very bottom with the caption engine and 
 
 ## Privacy
 
-Transcripts pass through the translate function in memory only. The function doesn't store them or log their text (it logs only error class and status). Translation runs once per transmission, on the sender's phone. Receivers make no API calls.
+The translate and captions functions handle text and audio in memory only and never log it (only error class and status). The one place messages are stored is the crew log, which deletes them after 24 hours. Translation runs once per transmission, on the sender's phone. Receivers make no API calls.

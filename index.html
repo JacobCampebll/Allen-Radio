@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#16181b">
 <title>Allen Field Radio</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Allen Radio">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -70,8 +76,10 @@
   .item .s { font-size: 14px; color: #8a8f95; }
   .item.alarm .m { color: var(--red); }
 
-  .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
-  .preset { position: relative; min-height: 56px; border-radius: 12px; border: 0; color: #fff; font-weight: 800; font-size: 16px; }
+  .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .preset { position: relative; min-height: 46px; border-radius: 10px; border: 0; color: #fff; font-weight: 800; font-size: 14px; line-height: 1.1; padding: 4px 16px;
+    box-shadow: 0 3px 0 rgba(0,0,0,.25); }
+  .preset:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.25); }
   .preset.wide { grid-column: span 2; }
   .preset .dot { position: absolute; top: 6px; right: 8px; width: 9px; height: 9px; border-radius: 50%; background: #ffd400; }
 
@@ -90,6 +98,13 @@
   .btn svg { width: 24px; height: 24px; fill: currentColor; }
   .talk.on { background: var(--red); box-shadow: 0 0 0 6px rgba(208,2,27,.18), 0 6px 16px rgba(208,2,27,.35); }
   .talk:disabled { background: #b9bcc0; box-shadow: none; }
+  .crews { grid-template-columns: 1fr 1fr; }
+  .install { position: relative; background: #fff4ec; border: 1px solid #ffd2b5; border-radius: 12px; padding: 12px 40px 12px 14px; font-size: 15px; margin-bottom: 16px; }
+  .install b { display: block; margin-bottom: 2px; }
+  .install .x { position: absolute; top: 6px; right: 6px; background: none; border: 0; font-size: 18px; color: var(--muted); padding: 6px 10px; }
+  .install .ibtn { margin-top: 8px; border: 0; border-radius: 10px; background: var(--orange); color: #fff; font-weight: 700; padding: 10px 16px; }
+  .preset-note { font-size: 13px; color: var(--muted); margin: 6px 2px 16px; }
+  .preset-note i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #ffd400; border: 1px solid #c9a800; }
   .toast { position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%); background: var(--bar); color: #fff;
     border-radius: 10px; padding: 10px 14px; font-size: 14px; z-index: 30; max-width: 92vw; }
 </style>
@@ -103,10 +118,16 @@
 <section id="joinView">
   <div class="wrap">
     <h1>Field Radio</h1>
+    <div class="install hidden" id="installTip">
+      <b>Install the app / Instalar la app</b>
+      <span id="installText"></span>
+      <button class="ibtn hidden" id="installBtn">Install / Instalar</button>
+      <button class="x" id="installClose" aria-label="Close">✕</button>
+    </div>
     <div class="field"><label class="sec" for="joinName">Your name / Su nombre</label>
       <input class="name" id="joinName" maxlength="20" autocomplete="name" placeholder="Name"></div>
     <div class="field"><div class="sec">Language / Idioma</div><div class="langs" id="langButtons"></div></div>
-    <div class="sec">Channel: <span id="joinChannel"></span></div>
+    <div class="field"><div class="sec">Crew / Cuadrilla</div><div class="langs crews" id="crewButtons"></div></div>
     <div class="err" id="joinErr"></div>
   </div>
   <div class="dock"><button class="btn" id="joinBtn">Start · Empezar</button></div>
@@ -119,6 +140,12 @@
     <div class="chips" id="chips"></div>
     <div class="alone hidden" id="alone">No one else on yet. / Nadie más conectado.</div>
 
+    <div id="safety" class="hidden">
+      <div class="sec">Safety / Seguridad</div>
+      <div class="presets" id="presets"></div>
+      <div class="preset-note hidden" id="presetNote"><i></i> Spanish wording not yet checked / Español sin revisar</div>
+    </div>
+
     <div class="sec">Latest / Último</div>
     <div class="card" id="card">
       <div class="cap-empty" id="capEmpty">Translations show up here. / Las traducciones aparecen aquí.</div>
@@ -128,12 +155,12 @@
     </div>
     <div class="history" id="log"></div>
 
-    <div class="presets hidden" id="presets"></div>
-
     <div class="foot">
       <label><input type="checkbox" id="speakToggle"> Read translations aloud</label><br>
-      <button class="linkbtn" id="changeBtn">Change name or language</button>
+      <button class="linkbtn" id="changeBtn">Change crew, name or language</button>
+      <a class="linkbtn" href="log.html">Crew log (foreman)</a>
       <div class="fine">Translations are an aid and can be wrong. / Las traducciones pueden tener errores.</div>
+      <div class="fine">Messages are kept for 24 hours in the crew log. / Los mensajes se guardan 24 horas en el registro.</div>
       <div class="diag" id="diag"></div>
     </div>
   </div>
@@ -147,7 +174,7 @@
    CONFIG
    ===================================================================== */
 const CONFIG = {
-  channel: "ALLEN-MAIN",      // everyone joins this one channel for now
+  crews: ["Beaver", "Powell", "Ian", "Blake"],   // each crew is its own channel
   peerPrefix: "allen-field-radio",
   maxSlots: 12,
   peerOptions: { debug: 0 },
@@ -159,6 +186,7 @@ const CONFIG = {
     sttEndpoint: "/.netlify/functions/stt",
     timeoutMs: 5000,
     sttTimeoutMs: 9000,
+    logEndpoint: "/.netlify/functions/log",
   },
 
   // Caption engine: "auto" tries the phone's speech recognition and falls back to the
@@ -172,23 +200,22 @@ const CONFIG = {
     { code: "es-US", label: "Español", short: "ES" },
   ],
 
-  // Safety buttons are hidden for the simple version. Set true to bring the row back.
-  // Set verified: true only after the bilingual crew review.
-  showPresets: false,
+  // Safety buttons: fixed wording, no translation wait. Set verified: true only after the bilingual crew review.
+  showPresets: true,
   presets: [
-    { key: "STOP", icon: "✋", color: "#d0021b", alarm: true, wide: true, verified: false,
+    { key: "STOP", es: "ALTO", icon: "✋", color: "#d0021b", alarm: true, wide: true, verified: false,
       text: { "en-US": "Stop! Stop now!", "es-US": "¡Alto! ¡Deténgase ya!" } },
-    { key: "SLOW", icon: "🐢", color: "#e08a00", verified: false,
+    { key: "SLOW", es: "DESPACIO", icon: "🐢", color: "#e08a00", verified: false,
       text: { "en-US": "Slow down.", "es-US": "Más despacio." } },
-    { key: "HOLD TRAFFIC", icon: "🚧", color: "#c25e00", verified: false,
+    { key: "HOLD TRAFFIC", es: "PAREN TRÁFICO", icon: "🚧", color: "#c25e00", verified: false,
       text: { "en-US": "Hold traffic.", "es-US": "Detengan el tráfico." } },
-    { key: "CLEAR / GO", icon: "✅", color: "#1f8a3b", verified: false,
+    { key: "CLEAR / GO", es: "LIBRE", icon: "✅", color: "#1f8a3b", verified: false,
       text: { "en-US": "Clear. Go ahead.", "es-US": "Libre. Adelante." } },
-    { key: "TRUCK COMING", icon: "🚚", color: "#2a62c9", verified: false,
+    { key: "TRUCK COMING", es: "VIENE CAMIÓN", icon: "🚚", color: "#2a62c9", verified: false,
       text: { "en-US": "Truck coming.", "es-US": "Viene un camión." } },
-    { key: "BACK UP", icon: "↩️", color: "#6b3fb5", verified: false,
+    { key: "BACK UP", es: "REVERSA", icon: "↩️", color: "#6b3fb5", verified: false,
       text: { "en-US": "Back up.", "es-US": "Échese para atrás." } },
-    { key: "EMERGENCY", icon: "🚨", color: "#8f0010", alarm: true, wide: true, verified: false,
+    { key: "EMERGENCY", es: "EMERGENCIA", icon: "🚨", color: "#8f0010", alarm: true, verified: false,
       text: { "en-US": "Emergency! Stop work. Call 911.", "es-US": "¡Emergencia! Paren el trabajo. Llamen al 911." } },
   ],
 
@@ -204,7 +231,7 @@ const store = {
 };
 
 const S = {
-  name: store.get("name", ""), channel: CONFIG.channel,
+  name: store.get("name", ""), channel: CONFIG.crews.includes(store.get("crew", "")) ? store.get("crew", "") : "",
   lang: store.get("lang", "en-US"),
   speak: store.get("speak", true),
   sttMode: CONFIG.sttDefault,
@@ -253,7 +280,7 @@ function renderRoster() {
   const list = [...S.peers.values()].filter((p) => p.conn && p.conn.open)
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   const people = [{ name: S.name, lang: S.lang, talking: S.transmitting, me: true }, ...list];
-  $("rosterTitle").textContent = !S.joined ? "Connecting…" : "On the channel";
+  $("rosterTitle").textContent = !S.joined ? "Connecting…" : `${S.channel} crew / Cuadrilla ${S.channel}`;
   $("rosterCount").textContent = S.joined ? `· ${people.length}` : "";
   const chips = $("chips");
   chips.innerHTML = "";
@@ -309,16 +336,29 @@ function addLog(entry) {
   }
 }
 
+function renderCrewButtons() {
+  const box = $("crewButtons");
+  box.innerHTML = "";
+  for (const c of CONFIG.crews) {
+    const b = document.createElement("button");
+    b.className = "lang" + (c === S.channel ? " on" : "");
+    b.textContent = c;
+    b.addEventListener("click", () => { S.channel = c; $("joinErr").textContent = ""; renderCrewButtons(); });
+    box.appendChild(b);
+  }
+}
+
 function renderPresets() {
   const box = $("presets");
-  box.classList.toggle("hidden", !CONFIG.showPresets);
+  $("safety").classList.toggle("hidden", !CONFIG.showPresets);
   if (!CONFIG.showPresets) return;
+  $("presetNote").classList.toggle("hidden", CONFIG.presets.every((p) => p.verified));
   box.innerHTML = "";
   for (const p of CONFIG.presets) {
     const b = document.createElement("button");
     b.className = "preset" + (p.wide ? " wide" : "");
     b.style.background = p.color;
-    b.textContent = `${p.icon} ${p.key}`;
+    b.textContent = `${p.icon} ${p.key} · ${p.es}`;
     if (!p.verified) { const dot = document.createElement("span"); dot.className = "dot"; dot.title = "Unverified wording"; b.appendChild(dot); }
     b.addEventListener("click", () => sendPreset(p.key));
     box.appendChild(b);
@@ -788,6 +828,16 @@ async function postJSON(url, body, timeoutMs) {
   } finally { clearTimeout(timer); }
 }
 
+// Save one message to the daily crew log. Fire and forget: the radio never waits on it.
+function saveToLog(entry) {
+  try {
+    fetch(CONFIG.translate.logEndpoint, {
+      method: "POST", keepalive: true, headers: { "content-type": "application/json" },
+      body: JSON.stringify({ crew: S.channel, who: S.name, lang: S.lang, ...entry }),
+    }).catch(() => {});
+  } catch {}
+}
+
 async function sendTranscript(raw, releasedAt) {
   const text = clip(raw, 600).replace(/\s+/g, " ").trim();
   if (!text || text.replace(/[^\p{L}\p{N}]/gu, "").length < 2) {
@@ -810,6 +860,7 @@ async function sendTranscript(raw, releasedAt) {
   const lat = Math.round(performance.now() - releasedAt);
   S.lastLatency = lat;
   broadcast({ type: "tx", id, from: S.name, srcLang: S.lang, text, translations, ts: Date.now(), lat });
+  saveToLog({ id, kind: "voice", text, translations, failed });
   const sentAs = Object.values(translations).find((v) => typeof v === "string" && v);
   const cap = { who: "You", main: text, sub: failed ? "(not translated)" : sentAs ? `Sent as: ${sentAs}` : "" };
   setCaption(cap);
@@ -866,7 +917,10 @@ function sendPreset(key) {
   const p = presetByKey(key);
   if (!p) return;
   ensureAudioCtx();
-  broadcast({ type: "preset", id: uid(), from: S.name, key, ts: Date.now() });
+  const id = uid();
+  broadcast({ type: "preset", id, from: S.name, key, ts: Date.now() });
+  const other = S.lang === "es-US" ? "en-US" : "es-US";
+  saveToLog({ id, kind: "safety", text: presetText(p, S.lang), translations: { [other]: presetText(p, other) }, failed: false });
   attentionTone(p.alarm);
   if (p.alarm) flashLcd();
   const cap = { who: "You sent", main: `${p.icon} ${p.key}`, sub: presetText(p, S.lang), alarm: p.alarm };
@@ -895,9 +949,10 @@ function onPreset(peer, msg) {
 $("joinBtn").addEventListener("click", async () => {
   const name = $("joinName").value.trim();
   if (!name) { $("joinErr").textContent = "Type your name. / Escriba su nombre."; return; }
+  if (!S.channel) { $("joinErr").textContent = "Pick your crew. / Elija su cuadrilla."; return; }
   $("joinErr").textContent = "";
   S.name = name;
-  store.set("name", name); store.set("lang", S.lang);
+  store.set("name", name); store.set("lang", S.lang); store.set("crew", S.channel);
   ensureAudioCtx();
   if (window.speechSynthesis) speechSynthesis.speak(new SpeechSynthesisUtterance("")); // unlock iOS speech
   await setupMic();
@@ -907,7 +962,31 @@ $("joinBtn").addEventListener("click", async () => {
   try { if (navigator.wakeLock) await navigator.wakeLock.request("screen"); } catch {}
 });
 
-$("changeBtn").addEventListener("click", () => { if (S.transmitting) pttUp(); leaveChannel(); renderLangButtons(); });
+$("changeBtn").addEventListener("click", () => { if (S.transmitting) pttUp(); leaveChannel(); renderLangButtons(); renderCrewButtons(); });
+
+// Install as an app: Android shows an Install button; iPhone gets Share → Add to Home Screen steps.
+const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+let installEvent = null;
+function showInstallTip(text, withButton) {
+  if (standalone || store.get("installTipClosed", false)) return;
+  $("installText").textContent = text;
+  $("installBtn").classList.toggle("hidden", !withButton);
+  $("installTip").classList.remove("hidden");
+}
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  installEvent = e;
+  showInstallTip("Put Allen Radio on your home screen. / Ponga Allen Radio en su pantalla de inicio.", true);
+});
+$("installBtn").addEventListener("click", async () => {
+  if (!installEvent) return;
+  installEvent.prompt();
+  await installEvent.userChoice.catch(() => {});
+  installEvent = null;
+  $("installTip").classList.add("hidden");
+});
+$("installClose").addEventListener("click", () => { store.set("installTipClosed", true); $("installTip").classList.add("hidden"); });
+if (IS_IOS) showInstallTip("Tap Share ⬆︎ then “Add to Home Screen”. / Toque Compartir ⬆︎ y “Agregar a inicio”.", false);
 
 $("speakToggle").checked = S.speak;
 $("speakToggle").addEventListener("change", (e) => {
@@ -927,8 +1006,8 @@ if (navigator.serviceWorker) navigator.serviceWorker.getRegistrations().then((rs
 if (window.caches) caches.keys().then((ks) => ks.forEach((k) => caches.delete(k))).catch(() => {});
 
 $("joinName").value = S.name;
-$("joinChannel").textContent = CONFIG.channel;
 renderLangButtons();
+renderCrewButtons();
 renderPresets();
 setCaption({});
 show("joinView");
