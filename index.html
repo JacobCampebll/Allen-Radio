@@ -555,6 +555,7 @@ function renderDiag() {
   const parts = [
     `captions: ${currentEngine()}${S.sttConflict ? " (phone STT conflicted → server)" : ""}`,
     S.lastLatency != null ? `latency ${S.lastLatency} ms` : "",
+    sigLog.length ? `signal: ${sigLog[sigLog.length - 1].slice(9)}` : "",
   ].filter(Boolean);
   $("diag").textContent = parts.join(" · ");
 }
@@ -695,11 +696,13 @@ function claimSlot(n) {
     S.claiming = null;
     S.peer = peer; S.myId = id; S.slot = n; S.joined = true;
     S.recoverTries = 0; S.claimTries = 0;
+    sigNote(`${n}:open`);
     setStatus("ON AIR");
     renderRoster(); renderDiag(); updateConnBar();
     dialExisting();
   });
   peer.on("error", (err) => {
+    if (err.type !== "peer-unavailable") sigNote(`${n}:${err.type}`);
     if (err.type === "unavailable-id") { clearTimeout(stall); peer.destroy(); if (S.claiming === peer) claimSlot(n + 1); return; }
     if (err.type === "peer-unavailable") {
       // Empty slot while dialing — expected. Abandon our pending dial to it.
@@ -713,7 +716,7 @@ function claimSlot(n) {
     }
     setStatus(`ERR ${err.type}`.toUpperCase());
   });
-  peer.on("disconnected", () => { if (S.joined && !peer.destroyed) recoverSignal(); });
+  peer.on("disconnected", () => { sigNote(`${n}:disconnected`); if (S.joined && !peer.destroyed) recoverSignal(); });
   peer.on("close", () => { if (S.joined && S.peer === peer) rejoin(); });
   peer.on("call", (call) => onIncomingCall(call));
   peer.on("connection", (conn) => onIncomingConn(conn));
@@ -906,7 +909,25 @@ function updateConnBar() {
   const trouble = S.joined && (!navigator.onLine || !S.peer || S.peer.destroyed || S.peer.disconnected || S.recovering);
   const rejoining = !S.joined && !!S.channel && !$("radioView").classList.contains("hidden");
   bar.classList.toggle("hidden", !(trouble || rejoining));
+  if (trouble || rejoining) { S.troubleSince = S.troubleSince || Date.now(); if (Date.now() - S.troubleSince > 20000) reportStuck(); }
+  else S.troubleSince = 0;
   bar.textContent = !navigator.onLine ? t("noSignal") : t("reconnecting");
+}
+
+// Connection diary: the last few switchboard events, shown in the small print at the bottom and
+// sent to the server log when this phone is stuck reconnecting, so problems can be traced.
+const sigLog = [];
+let sigReported = 0;
+function sigNote(ev) {
+  sigLog.push(`${new Date().toISOString().slice(11, 19)} ${ev}`);
+  if (sigLog.length > 12) sigLog.shift();
+  renderDiag();
+}
+function reportStuck() {
+  if (Date.now() - sigReported < 60000) return;
+  sigReported = Date.now();
+  const body = JSON.stringify({ deviceId: S.deviceId, crew: S.channel, diag: { ua: navigator.userAgent.slice(0, 160), online: navigator.onLine, log: sigLog } });
+  try { navigator.sendBeacon(CONFIG.presenceEndpoint, body); } catch {}
 }
 
 function cancelClaim() {

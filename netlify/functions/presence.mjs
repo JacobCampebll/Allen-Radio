@@ -66,6 +66,12 @@ export default async (req) => {
     }
     if (!hex(body.deviceId, 32)) return reply(400, { error: "bad_request" });
 
+    // A phone stuck reconnecting sends its recent connection events here for the function log.
+    if (body.diag && typeof body.diag === "object") {
+      console.log("radio stuck", body.deviceId.slice(0, 6), String(body.crew).slice(0, 10), JSON.stringify(body.diag).slice(0, 1500));
+      return reply(200, { ok: true });
+    }
+
     const s = store();
     if (body.away === true) await s.delete(`on/${body.deviceId}`);
     else {
