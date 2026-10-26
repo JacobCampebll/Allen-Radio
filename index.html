@@ -54,7 +54,7 @@
   .chip .nm { flex: 1; }
   .chip .lg { font-size: 14px; font-weight: 700; color: var(--muted); }
   .chip.live { background: #eaf7ee; }
-  .chip.live .lg::before { content: "talking · "; color: var(--green); }
+  .chip.live .lg::before { content: attr(data-talking) " · "; color: var(--green); }
   .alone { font-size: 15px; color: var(--muted); margin: -8px 2px 14px; }
 
   /* Latest */
@@ -123,26 +123,26 @@
 </head>
 <body>
 
-<header class="top"><img src="allen-logo-white.png" alt="The Allen Company"><span><i class="led" id="busyLed"></i>Field Radio</span></header>
+<header class="top"><img src="allen-logo-white.png" alt="The Allen Company"><span><i class="led" id="busyLed"></i><span data-i18n="title">Field Radio</span></span></header>
 <div class="strip"></div>
 
 <!-- ===================== JOIN ===================== -->
 <section id="joinView">
   <div class="wrap">
-    <h1>Field Radio</h1>
+    <h1 data-i18n="title">Field Radio</h1>
     <div class="install hidden" id="installTip">
-      <b>Install the app / Instalar la app</b>
+      <b data-i18n="installTitle">Install the app</b>
       <span id="installText"></span>
-      <button class="ibtn hidden" id="installBtn">Install / Instalar</button>
+      <button class="ibtn hidden" id="installBtn" data-i18n="installBtn">Install</button>
       <button class="x" id="installClose" aria-label="Close">✕</button>
     </div>
-    <div class="field"><label class="sec" for="joinName">Your name / Su nombre</label>
-      <input class="name" id="joinName" maxlength="20" autocomplete="name" placeholder="Name"></div>
+    <div class="field"><label class="sec" for="joinName" data-i18n="name">Your name</label>
+      <input class="name" id="joinName" maxlength="20" autocomplete="name" placeholder="Name" data-i18n-ph="namePh"></div>
     <div class="field"><div class="sec">Language / Idioma</div><div class="langs" id="langButtons"></div></div>
-    <div class="field"><div class="sec">Crew / Cuadrilla</div><div class="langs crews" id="crewButtons"></div></div>
+    <div class="field"><div class="sec" data-i18n="crew">Crew</div><div class="langs crews" id="crewButtons"></div></div>
     <div class="err" id="joinErr"></div>
   </div>
-  <div class="dock"><button class="btn" id="joinBtn">Start · Empezar</button></div>
+  <div class="dock"><button class="btn" id="joinBtn" data-i18n="start">Start</button></div>
 </section>
 
 <!-- ===================== RADIO ===================== -->
@@ -150,22 +150,22 @@
   <div class="wrap">
     <div class="sec"><span id="rosterTitle">Connecting…</span> <span id="rosterCount"></span></div>
     <div class="chips" id="chips"></div>
-    <div class="alone hidden" id="alone">No one else on yet. / Nadie más conectado.</div>
+    <div class="alone hidden" id="alone" data-i18n="alone">No one else on yet.</div>
 
     <div id="safety" class="hidden">
-      <div class="sec">Safety / Seguridad</div>
+      <div class="sec" data-i18n="safety">Safety</div>
       <div class="presets" id="presets"></div>
       <div class="carpick hidden" id="carPick">
-        <div class="sec">Last car color / Color del último carro</div>
+        <div class="sec" data-i18n="carColor">Last car color</div>
         <div class="swatches" id="swatches"></div>
-        <button class="linkbtn" id="carCancel">Cancel / Cancelar</button>
+        <button class="linkbtn" id="carCancel" data-i18n="cancel">Cancel</button>
       </div>
-      <div class="preset-note hidden" id="presetNote"><i></i> Spanish wording not yet checked / Español sin revisar</div>
+      <div class="preset-note hidden" id="presetNote"><i></i> <span data-i18n="unchecked">Spanish wording not yet checked</span></div>
     </div>
 
-    <div class="sec-row"><span class="sec">Latest / Último</span><button class="clearbtn" id="clearChat">Clear chat · Borrar</button></div>
+    <div class="sec-row"><span class="sec" data-i18n="latest">Latest</span><button class="clearbtn" id="clearChat" data-i18n="clear">Clear chat</button></div>
     <div class="card" id="card">
-      <div class="cap-empty" id="capEmpty">Translations show up here. / Las traducciones aparecen aquí.</div>
+      <div class="cap-empty" id="capEmpty" data-i18n="empty">Translations show up here.</div>
       <div class="cap-who" id="capWho"></div>
       <div class="cap-main" id="capMain"></div>
       <div class="cap-sub" id="capSub"></div>
@@ -173,11 +173,11 @@
     <div class="history" id="log"></div>
 
     <div class="foot">
-      <label><input type="checkbox" id="speakToggle"> Read translations aloud</label><br>
-      <button class="linkbtn" id="changeBtn">Change crew, name or language</button>
-      <a class="linkbtn" href="log.html">Crew log (foreman)</a>
-      <div class="fine">Translations are an aid and can be wrong. / Las traducciones pueden tener errores.</div>
-      <div class="fine">Messages are kept for 24 hours in the crew log. / Los mensajes se guardan 24 horas en el registro.</div>
+      <label><input type="checkbox" id="speakToggle"> <span data-i18n="readAloud">Read translations aloud</span></label><br>
+      <button class="linkbtn" id="changeBtn" data-i18n="change">Change crew, name or language</button>
+      <a class="linkbtn" href="log.html" data-i18n="crewLog">Crew log (foreman)</a>
+      <div class="fine" data-i18n="fine1">Translations are an aid and can be wrong.</div>
+      <div class="fine" data-i18n="fine2">Messages are kept for 24 hours in the crew log.</div>
       <div class="diag" id="diag"></div>
     </div>
   </div>
@@ -280,6 +280,62 @@ if (/^es/.test(S.lang)) S.lang = "es-US"; // earlier builds had per-country Span
 if (!allLanguages().some((l) => l.code === S.lang)) S.lang = "en-US";
 
 /* =====================================================================
+   UI TEXT — every label in the person's own language (English or Spanish)
+   ===================================================================== */
+const STR = {
+  "en-US": {
+    title: "Field Radio", installTitle: "Install the app", installBtn: "Install",
+    installIOS: "Tap Share ⬆︎ then “Add to Home Screen”.", installAndroid: "Put Allen Radio on your home screen.",
+    name: "Your name", namePh: "Name", crew: "Crew", start: "Start",
+    errName: "Type your name.", errCrew: "Pick your crew.",
+    connecting: "Connecting…", crewTitle: "{crew} crew", you: "you", alone: "No one else on yet.",
+    safety: "Safety", carColor: "Last car color", cancel: "Cancel", unchecked: "Spanish wording not yet checked",
+    latest: "Latest", clear: "Clear chat", empty: "Translations show up here.",
+    readAloud: "Read translations aloud", change: "Change crew, name or language", crewLog: "Crew log (foreman)",
+    fine1: "Translations are an aid and can be wrong.", fine2: "Messages are kept for 24 hours in the crew log.",
+    talk: "Tap to talk", send: "Tap to send", noMic: "No mic · listen only", talking: "talking",
+    youWho: "You", youSent: "You sent", someone: "Someone",
+    noCaption: "no caption", voiceSent: "Your voice was sent.", translating: "translating…", transcribing: "Transcribing…",
+    notTranslated: "(not translated)", sentAs: "Sent as: {text}", unverified: "unverified",
+    cleared: "Chat cleared", clearedBy: "{name} cleared the chat", clearFail: "Screen cleared, but the crew log couldn't be erased.",
+    confirmClear: "Clear the chat for everyone on the {crew} crew and erase the crew log? This can't be undone.",
+    micBlocked: "Mic blocked — listen-only mode.", sttConflict: "This phone can't caption and transmit at once — switching captions to server mode.",
+    micLost: "Mic lost. Leave and rejoin the channel.", reconnecting: "Reconnecting…", channelFull: "Channel full.", connError: "Connection error: {e}",
+  },
+  "es-US": {
+    title: "Radio de campo", installTitle: "Instale la app", installBtn: "Instalar",
+    installIOS: "Toque Compartir ⬆︎ y luego “Agregar a inicio”.", installAndroid: "Ponga Allen Radio en su pantalla de inicio.",
+    name: "Su nombre", namePh: "Nombre", crew: "Cuadrilla", start: "Empezar",
+    errName: "Escriba su nombre.", errCrew: "Elija su cuadrilla.",
+    connecting: "Conectando…", crewTitle: "Cuadrilla {crew}", you: "usted", alone: "Nadie más conectado.",
+    safety: "Seguridad", carColor: "Color del último carro", cancel: "Cancelar", unchecked: "Español sin revisar",
+    latest: "Último", clear: "Borrar chat", empty: "Las traducciones aparecen aquí.",
+    readAloud: "Leer traducciones en voz alta", change: "Cambiar cuadrilla, nombre o idioma", crewLog: "Registro (capataz)",
+    fine1: "Las traducciones son una ayuda y pueden tener errores.", fine2: "Los mensajes se guardan 24 horas en el registro.",
+    talk: "Toque para hablar", send: "Toque para enviar", noMic: "Sin micrófono · solo escuchar", talking: "hablando",
+    youWho: "Usted", youSent: "Usted envió", someone: "Alguien",
+    noCaption: "sin texto", voiceSent: "Su voz fue enviada.", translating: "traduciendo…", transcribing: "Transcribiendo…",
+    notTranslated: "(sin traducir)", sentAs: "Enviado como: {text}", unverified: "sin revisar",
+    cleared: "Chat borrado", clearedBy: "{name} borró el chat", clearFail: "Se borró la pantalla, pero no se pudo borrar el registro.",
+    confirmClear: "¿Borrar el chat para toda la cuadrilla {crew} y el registro? No se puede deshacer.",
+    micBlocked: "Micrófono bloqueado — solo escuchar.", sttConflict: "Este teléfono no puede transcribir y transmitir a la vez — usando el servidor.",
+    micLost: "Se perdió el micrófono. Salga y vuelva a entrar.", reconnecting: "Reconectando…", channelFull: "Canal lleno.", connError: "Error de conexión: {e}",
+  },
+};
+
+function t(key, vars = {}) {
+  const line = (STR[S.lang] || STR["en-US"])[key] ?? STR["en-US"][key] ?? key;
+  return line.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
+}
+
+// Swap every tagged label on the page into the current language.
+function applyLang() {
+  document.documentElement.lang = S.lang === "es-US" ? "es" : "en";
+  for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
+  for (const el of document.querySelectorAll("[data-i18n-ph]")) el.placeholder = t(el.dataset.i18nPh);
+}
+
+/* =====================================================================
    RENDERING
    ===================================================================== */
 function show(view) {
@@ -293,7 +349,7 @@ function renderLangButtons() {
     const b = document.createElement("button");
     b.className = "lang" + (l.code === S.lang ? " on" : "");
     b.textContent = l.label;
-    b.addEventListener("click", () => { S.lang = l.code; renderLangButtons(); });
+    b.addEventListener("click", () => { S.lang = l.code; $("joinErr").textContent = ""; renderLangButtons(); applyLang(); renderPresets(); });
     box.appendChild(b);
   }
 }
@@ -303,14 +359,14 @@ function renderRoster() {
   const list = [...S.peers.values()].filter((p) => p.conn && p.conn.open)
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   const people = [{ name: S.name, lang: S.lang, talking: S.transmitting, me: true }, ...list];
-  $("rosterTitle").textContent = !S.joined ? "Connecting…" : `${S.channel} crew / Cuadrilla ${S.channel}`;
+  $("rosterTitle").textContent = !S.joined ? t("connecting") : t("crewTitle", { crew: S.channel });
   $("rosterCount").textContent = S.joined ? `· ${people.length}` : "";
   const chips = $("chips");
   chips.innerHTML = "";
   for (const p of people) {
     const c = document.createElement("div");
     c.className = "chip" + (p.me ? " me" : "") + (p.talking ? " live" : "");
-    c.innerHTML = `<span class="dot"></span><span class="nm">${esc(p.name || "?")}${p.me ? " (you)" : ""}</span><span class="lg">${esc(langInfo(p.lang).short)}</span>`;
+    c.innerHTML = `<span class="dot"></span><span class="nm">${esc(p.name || "?")}${p.me ? ` (${t("you")})` : ""}</span><span class="lg" data-talking="${esc(t("talking"))}">${esc(langInfo(p.lang).short)}</span>`;
     chips.appendChild(c);
   }
   $("alone").classList.toggle("hidden", !S.joined || list.length > 0);
@@ -318,9 +374,9 @@ function renderRoster() {
   const talk = $("talk");
   talk.disabled = S.listenOnly || !S.joined;
   talk.classList.toggle("on", S.transmitting);
-  talk.innerHTML = S.listenOnly ? "No mic · Solo escuchar"
-    : S.transmitting ? `${MIC_SVG} Tap to send · Enviar`
-    : `${MIC_SVG} Tap to talk · Hablar`;
+  talk.innerHTML = S.listenOnly ? esc(t("noMic"))
+    : S.transmitting ? `${MIC_SVG} ${esc(t("send"))}`
+    : `${MIC_SVG} ${esc(t("talk"))}`;
   const led = $("busyLed");
   led.classList.toggle("tx", S.transmitting);
   led.classList.toggle("rx", !S.transmitting && list.some((p) => p.talking));
@@ -328,8 +384,10 @@ function renderRoster() {
 
 function setStatus(msg) {
   if (!msg || msg === "ON AIR") return;
-  if (!S.joined) $("rosterTitle").textContent = /^CLAIMING/.test(msg) ? "Connecting… / Conectando…" : msg;
-  else toast(msg.charAt(0) + msg.slice(1).toLowerCase());
+  const nice = /^CLAIMING/.test(msg) ? t("connecting") : /^RECONNECTING/.test(msg) ? t("reconnecting")
+    : /^CHANNEL FULL/.test(msg) ? t("channelFull") : /^ERR /.test(msg) ? t("connError", { e: msg.slice(4).toLowerCase() }) : msg;
+  if (!S.joined) $("rosterTitle").textContent = nice;
+  else toast(nice);
 }
 
 function setCaption({ who = "", main = "", sub = "", badge = "", swatch = "" }) {
@@ -383,7 +441,7 @@ function renderPresets() {
     const b = document.createElement("button");
     b.className = "preset" + (p.wide ? " wide" : "");
     b.style.background = p.color;
-    b.textContent = `${p.icon} ${p.key} · ${p.es}`;
+    b.textContent = `${p.icon} ${presetLabel(p)}`;
     if (!p.verified) { const dot = document.createElement("span"); dot.className = "dot"; dot.title = "Unverified wording"; b.appendChild(dot); }
     b.addEventListener("click", () => (p.pickColor ? toggleCarPick() : sendPreset(p.key)));
     box.appendChild(b);
@@ -393,7 +451,8 @@ function renderPresets() {
   for (const c of CONFIG.carColors) {
     const b = document.createElement("button");
     b.className = "swatch-btn";
-    b.innerHTML = `<i style="background:${c.hex}"></i>${esc(c.en[0].toUpperCase() + c.en.slice(1))} · ${esc(c.es)}`;
+    const nm = S.lang === "es-US" ? c.es : c.en;
+    b.innerHTML = `<i style="background:${c.hex}"></i>${esc(nm[0].toUpperCase() + nm.slice(1))}`;
     b.addEventListener("click", () => { $("carPick").classList.add("hidden"); sendPreset("LAST CAR", c.key); });
     sw.appendChild(b);
   }
@@ -525,7 +584,7 @@ async function setupMic() {
     // Listen-only: send a silent track so calls still connect.
     S.outStream = ctx.createMediaStreamDestination().stream;
     S.listenOnly = true;
-    toast("Mic blocked — listen-only mode. / Micrófono bloqueado — solo escuchar.");
+    toast(t("micBlocked"));
   }
 }
 
@@ -711,7 +770,7 @@ function pttUp() {
   renderRoster();
   pumpSpeech();
   const releasedAt = performance.now();
-  if (S.capture && S.capture.engine === "server") setCaption({ who: "You", main: "…", sub: "Transcribing… / Transcribiendo…" });
+  if (S.capture && S.capture.engine === "server") setCaption({ who: t("youWho"), main: "…", sub: t("transcribing") });
   stopCapture().then((text) => sendTranscript(text, releasedAt)).catch(() => {});
 }
 
@@ -811,7 +870,7 @@ function markConflict(reason) {
   S.sttConflict = true;
   store.set("sttConflict", true);
   console.warn("STT/mic conflict:", reason);
-  toast("This phone can't caption and transmit at once — switching captions to server mode.");
+  toast(t("sttConflict"));
   renderDiag();
 }
 
@@ -831,7 +890,7 @@ async function reacquireMic() {
     S.analyser = ctx.createAnalyser(); S.analyser.fftSize = 512;
     ctx.createMediaStreamSource(s).connect(S.analyser);
   } catch {
-    toast("Mic lost. Leave and rejoin the channel.");
+    toast(t("micLost"));
   }
 }
 
@@ -877,13 +936,13 @@ function saveToLog(entry) {
 async function sendTranscript(raw, releasedAt) {
   const text = clip(raw, 600).replace(/\s+/g, " ").trim();
   if (!text || text.replace(/[^\p{L}\p{N}]/gu, "").length < 2) {
-    setCaption({ who: "You", main: "no caption", sub: "Your voice was sent. / Su voz fue enviada." });
+    setCaption({ who: t("youWho"), main: t("noCaption"), sub: t("voiceSent") });
     return;
   }
   const id = uid();
   const targets = [...new Set([...S.peers.values()].filter((p) => p.conn && p.conn.open && p.lang).map((p) => p.lang))]
     .filter((l) => l !== S.lang);
-  setCaption({ who: "You", main: text, sub: targets.length ? "translating…" : "" });
+  setCaption({ who: t("youWho"), main: text, sub: targets.length ? t("translating") : "" });
 
   let translations = {}, failed = false;
   if (targets.length) {
@@ -898,7 +957,7 @@ async function sendTranscript(raw, releasedAt) {
   broadcast({ type: "tx", id, from: S.name, srcLang: S.lang, text, translations, ts: Date.now(), lat });
   saveToLog({ id, kind: "voice", text, translations, failed });
   const sentAs = Object.values(translations).find((v) => typeof v === "string" && v);
-  const cap = { who: "You", main: text, sub: failed ? "(not translated)" : sentAs ? `Sent as: ${sentAs}` : "" };
+  const cap = { who: t("youWho"), main: text, sub: failed ? t("notTranslated") : sentAs ? t("sentAs", { text: sentAs }) : "" };
   setCaption(cap);
   addLog(cap);
   renderDiag();
@@ -924,14 +983,14 @@ function onData(peerId, msg) {
       break;
     case "tx": onTx(p, msg); break;
     case "preset": onPreset(p, msg); break;
-    case "clear": clearScreen(); toast(`${clip(msg.from, 20) || p.name || "Someone"} cleared the chat · borró el chat`); break;
+    case "clear": clearScreen(); toast(t("clearedBy", { name: clip(msg.from, 20) || p.name || t("someone") })); break;
   }
 }
 
 function onTx(p, msg) {
   const src = clip(msg.srcLang, 16), text = clip(msg.text, 600);
   if (!text) return;
-  const who = clip(msg.from, 20) || p.name || "Someone";
+  const who = clip(msg.from, 20) || p.name || t("someone");
   const tr = msg.translations && typeof msg.translations === "object" ? clip(msg.translations[S.lang], 600) : "";
   let cap;
   if (src === S.lang) cap = { who, main: text, sub: "" };
@@ -947,6 +1006,7 @@ function onTx(p, msg) {
    PRESETS (hidden unless CONFIG.showPresets)
    ===================================================================== */
 const carColor = (key) => CONFIG.carColors.find((c) => c.key === key);
+const presetLabel = (p) => (S.lang === "es-US" ? p.es : p.key);
 
 function presetText(p, lang, colorKey) {
   const line = p.text[lang] || p.text["en-US"] || p.key;
@@ -965,7 +1025,7 @@ function sendPreset(key, colorKey) {
   saveToLog({ id, kind: "safety", text: presetText(p, S.lang, color), translations: { [other]: presetText(p, other, color) }, failed: false });
   attentionTone(p.alarm);
   if (p.alarm) flashLcd();
-  const cap = { who: "You sent", main: `${p.icon} ${presetText(p, S.lang, color)}`, sub: `${p.key} · ${p.es}`, alarm: p.alarm,
+  const cap = { who: t("youSent"), main: `${p.icon} ${presetText(p, S.lang, color)}`, sub: presetLabel(p), alarm: p.alarm,
     swatch: color ? carColor(color).hex : "" };
   setCaption(cap);
   addLog(cap);
@@ -980,8 +1040,8 @@ function onPreset(peer, msg) {
   if (navigator.vibrate) navigator.vibrate(p.alarm ? [400, 150, 400, 150, 400] : [150]);
   const color = p.pickColor && carColor(msg.color) ? msg.color : undefined;
   const line = presetText(p, S.lang, color);
-  const cap = { who: clip(msg.from, 20) || peer.name, main: `${p.icon} ${line}`, sub: `${p.key} · ${p.es}`, alarm: p.alarm,
-    badge: p.verified ? "" : "unverified", swatch: color ? carColor(color).hex : "" };
+  const cap = { who: clip(msg.from, 20) || peer.name, main: `${p.icon} ${line}`, sub: presetLabel(p), alarm: p.alarm,
+    badge: p.verified ? "" : t("unverified"), swatch: color ? carColor(color).hex : "" };
   setCaption(cap);
   addLog(cap);
   setTimeout(() => speakPriority(line, S.lang), waitMs);
@@ -992,8 +1052,8 @@ function onPreset(peer, msg) {
    ===================================================================== */
 $("joinBtn").addEventListener("click", async () => {
   const name = $("joinName").value.trim();
-  if (!name) { $("joinErr").textContent = "Type your name. / Escriba su nombre."; return; }
-  if (!S.channel) { $("joinErr").textContent = "Pick your crew. / Elija su cuadrilla."; return; }
+  if (!name) { $("joinErr").textContent = t("errName"); return; }
+  if (!S.channel) { $("joinErr").textContent = t("errCrew"); return; }
   $("joinErr").textContent = "";
   S.name = name;
   store.set("name", name); store.set("lang", S.lang); store.set("crew", S.channel);
@@ -1011,16 +1071,17 @@ $("changeBtn").addEventListener("click", () => { if (S.transmitting) pttUp(); le
 // Install as an app: Android shows an Install button; iPhone gets Share → Add to Home Screen steps.
 const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 let installEvent = null;
-function showInstallTip(text, withButton) {
+function showInstallTip(key, withButton) {
   if (standalone || store.get("installTipClosed", false)) return;
-  $("installText").textContent = text;
+  $("installText").dataset.i18n = key;
+  $("installText").textContent = t(key);
   $("installBtn").classList.toggle("hidden", !withButton);
   $("installTip").classList.remove("hidden");
 }
 window.addEventListener("beforeinstallprompt", (e) => {
   e.preventDefault();
   installEvent = e;
-  showInstallTip("Put Allen Radio on your home screen. / Ponga Allen Radio en su pantalla de inicio.", true);
+  showInstallTip("installAndroid", true);
 });
 $("installBtn").addEventListener("click", async () => {
   if (!installEvent) return;
@@ -1030,7 +1091,7 @@ $("installBtn").addEventListener("click", async () => {
   $("installTip").classList.add("hidden");
 });
 $("installClose").addEventListener("click", () => { store.set("installTipClosed", true); $("installTip").classList.add("hidden"); });
-if (IS_IOS) showInstallTip("Tap Share ⬆︎ then “Add to Home Screen”. / Toque Compartir ⬆︎ y “Agregar a inicio”.", false);
+if (IS_IOS) showInstallTip("installIOS", false);
 
 $("carCancel").addEventListener("click", () => $("carPick").classList.add("hidden"));
 
@@ -1042,13 +1103,13 @@ function clearScreen() {
 }
 
 $("clearChat").addEventListener("click", async () => {
-  if (!confirm(`Clear the chat for everyone on the ${S.channel} crew and erase the crew log? This can't be undone.\n\n¿Borrar el chat para toda la cuadrilla ${S.channel} y el registro? No se puede deshacer.`)) return;
+  if (!confirm(t("confirmClear", { crew: S.channel }))) return;
   broadcast({ type: "clear", from: S.name, ts: Date.now() });
   clearScreen();
   try {
     const res = await fetch(`${CONFIG.translate.logEndpoint}?crew=${encodeURIComponent(S.channel)}`, { method: "DELETE" });
-    toast(res.ok ? "Chat cleared · Chat borrado" : "Screen cleared, but the crew log couldn't be erased.");
-  } catch { toast("Screen cleared, but the crew log couldn't be erased."); }
+    toast(res.ok ? t("cleared") : t("clearFail"));
+  } catch { toast(t("clearFail")); }
 });
 
 $("speakToggle").checked = S.speak;
@@ -1071,6 +1132,7 @@ if (window.caches) caches.keys().then((ks) => ks.forEach((k) => caches.delete(k)
 $("joinName").value = S.name;
 renderLangButtons();
 renderCrewButtons();
+applyLang();
 renderPresets();
 setCaption({});
 show("joinView");
