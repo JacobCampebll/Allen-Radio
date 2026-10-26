@@ -338,7 +338,8 @@ const STR = {
     fine1: "Translations are an aid and can be wrong.", fine2: "Messages are kept for 24 hours in the crew log.",
     talk: "Tap to talk", send: "Tap to send", noMic: "No mic · listen only", talking: "talking",
     youWho: "You", youSent: "You sent", someone: "Someone",
-    noCaption: "no caption", voiceSent: "Your voice was sent.", translating: "translating…", transcribing: "Transcribing…",
+    noCaption: "no caption", voiceSent: "Your voice was sent.", voiceOnly: "Voice only — no caption",
+    busyTalk: "{name} is talking…", translating: "translating…", transcribing: "Transcribing…",
     notTranslated: "(not translated)", sentAs: "Sent as: {text}", unverified: "unverified",
     cleared: "Chat cleared", clearedBy: "{name} cleared the chat", clearFail: "Screen cleared, but the crew log couldn't be erased.",
     confirmClear: "Clear the chat for everyone on the {crew} crew and erase the crew log? This can't be undone.",
@@ -365,7 +366,8 @@ const STR = {
     fine1: "Las traducciones son una ayuda y pueden tener errores.", fine2: "Los mensajes se guardan 24 horas en el registro.",
     talk: "Toque para hablar", send: "Toque para enviar", noMic: "Sin micrófono · solo escuchar", talking: "hablando",
     youWho: "Usted", youSent: "Usted envió", someone: "Alguien",
-    noCaption: "sin texto", voiceSent: "Su voz fue enviada.", translating: "traduciendo…", transcribing: "Transcribiendo…",
+    noCaption: "sin texto", voiceSent: "Su voz fue enviada.", voiceOnly: "Solo voz — sin texto",
+    busyTalk: "{name} está hablando…", translating: "traduciendo…", transcribing: "Transcribiendo…",
     notTranslated: "(sin traducir)", sentAs: "Enviado como: {text}", unverified: "sin revisar",
     cleared: "Chat borrado", clearedBy: "{name} borró el chat", clearFail: "Se borró la pantalla, pero no se pudo borrar el registro.",
     confirmClear: "¿Borrar el chat para toda la cuadrilla {crew} y el registro? No se puede deshacer.",
@@ -413,6 +415,10 @@ function renderLangButtons() {
   }
 }
 
+// A "talking" flag older than the longest possible message is stale (its "done" got lost).
+const isTalking = (p) => !!p.talking && Date.now() - (p.talkingAt || 0) < (CONFIG.maxTalkSeconds + 10) * 1000;
+const otherTalker = () => [...S.peers.values()].find(isTalking);
+
 // Everyone on the channel, you first. The person talking gets a pulsing green chip.
 function renderRoster() {
   const list = [...S.peers.values()].filter((p) => p.conn && p.conn.open)
@@ -424,21 +430,23 @@ function renderRoster() {
   chips.innerHTML = "";
   for (const p of people) {
     const c = document.createElement("div");
-    c.className = "chip" + (p.me ? " me" : "") + (p.talking ? " live" : "");
+    c.className = "chip" + (p.me ? " me" : "") + (isTalking(p) ? " live" : "");
     c.innerHTML = `<span class="dot"></span><span class="nm">${esc(p.name || "?")}${p.me ? ` (${t("you")})` : ""}</span><span class="lg" data-talking="${esc(t("talking"))}">${esc(langInfo(p.lang).short)}</span>`;
     chips.appendChild(c);
   }
   $("alone").classList.toggle("hidden", !S.joined || list.length > 0);
 
-  const talk = $("talk");
-  talk.disabled = S.listenOnly || !S.joined;
+  // One at a time, like a radio: while someone else talks, the button waits for them.
+  const talk = $("talk"), busy = !S.transmitting && otherTalker();
+  talk.disabled = S.listenOnly || !S.joined || !!busy;
   talk.classList.toggle("on", S.transmitting);
   talk.innerHTML = S.listenOnly ? esc(t("noMic"))
     : S.transmitting ? `${MIC_SVG} ${esc(t("send"))}`
+    : busy ? esc(t("busyTalk", { name: busy.name || t("someone") }))
     : `${MIC_SVG} ${esc(t("talk"))}`;
   const led = $("busyLed");
   led.classList.toggle("tx", S.transmitting);
-  led.classList.toggle("rx", !S.transmitting && list.some((p) => p.talking));
+  led.classList.toggle("rx", !S.transmitting && list.some(isTalking));
 }
 
 function setStatus(msg) {
@@ -621,7 +629,7 @@ function pickVoice(lang) {
     || null;
 }
 
-const someoneTalking = () => [...S.peers.values()].some((p) => p.talking) || S.transmitting;
+const someoneTalking = () => [...S.peers.values()].some(isTalking) || S.transmitting;
 
 // Translations wait their turn and never overlap; they also wait while anyone is keyed up.
 function queueSpeech(text, lang) {
@@ -996,6 +1004,10 @@ setInterval(() => {
   if (!S.joined || !S.peer || S.peer.destroyed || document.visibilityState !== "visible") return;
   if (S.peer.disconnected) { recoverSignal(); return; }
   const now = Date.now();
+  if ([...S.peers.values()].some((p) => p.talking && !isTalking(p))) {
+    for (const p of S.peers.values()) if (!isTalking(p)) p.talking = false;
+    renderRoster(); pumpSpeech();
+  }
   for (const p of [...S.peers.values()]) {
     if (!p.conn || !p.conn.open) continue;
     if (now - (p.lastHeard || now) > DEAD_MS) { const id = p.id; dropPeer(id); dialOne(id); continue; }
@@ -1010,7 +1022,10 @@ window.addEventListener("offline", updateConnBar);
    ===================================================================== */
 function pttDown() {
   if (S.transmitting || S.listenOnly || !S.joined) return;
+  const busy = otherTalker();
+  if (busy) { toast(t("busyTalk", { name: busy.name || t("someone") })); return; }
   S.transmitting = true;
+  S.txStartedAt = Date.now();
   if (window.speechSynthesis) speechSynthesis.cancel();
   S.speaking = false;
   S.micTrack.enabled = true;
@@ -1031,7 +1046,22 @@ function pttUp() {
   pumpSpeech();
   const releasedAt = performance.now();
   if (S.capture && S.capture.engine === "server") setCaption({ who: t("youWho"), main: "…", sub: t("transcribing") });
-  stopCapture().then((text) => sendTranscript(text, releasedAt)).catch(() => {});
+  stopCapture().then((r) => sendTranscript(r.text, releasedAt, r.spoke)).catch(() => {});
+}
+
+// Two people tapped at the same instant: one of them backs off (the same one on both phones)
+// and their recording is thrown away.
+function yieldTalk(to) {
+  if (!S.transmitting) return;
+  S.transmitting = false;
+  clearTimeout(S.talkTimer);
+  S.micTrack.enabled = false;
+  broadcast({ type: "ptt", on: false });
+  const cap = S.capture;
+  S.capture = null;
+  if (cap) { clearInterval(cap.levelTimer); try { cap.rec && cap.rec.abort(); } catch {} try { cap.recorder && cap.recorder.stop(); } catch {} }
+  renderRoster();
+  toast(t("busyTalk", { name: to.name || t("someone") }));
 }
 
 /* =====================================================================
@@ -1098,9 +1128,11 @@ function startCapture() {
 
 async function stopCapture() {
   const cap = S.capture;
-  if (!cap) return "";
+  if (!cap) return { text: "", spoke: false };
   clearInterval(cap.levelTimer);
   const held = performance.now() - cap.started;
+  // Long enough, and loud enough, to have been someone talking rather than a stray tap.
+  const spoke = held > 800 && (!S.analyser || cap.peak > 0.02);
   let text = "";
   if (cap.rec) {
     try { cap.rec.stop(); } catch {}
@@ -1113,7 +1145,7 @@ async function stopCapture() {
     text = await serverTranscribe(cap);
   }
   if (S.capture === cap) S.capture = null;
-  return text;
+  return { text, spoke };
 }
 
 // Phone speech recognition can steal the mic from WebRTC (seen on iPhones). Signs:
@@ -1158,10 +1190,13 @@ async function serverTranscribe(cap) {
   const blob = new Blob(cap.chunks, { type: (cap.recorder && cap.recorder.mimeType) || "audio/webm" });
   if (blob.size < 2000) return "";
   const audio = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] || ""); r.readAsDataURL(blob); });
-  try {
-    const data = await postJSON(CONFIG.translate.sttEndpoint, { id: uid(), lang: S.lang, mime: blob.type, audio }, CONFIG.translate.sttTimeoutMs);
-    return clip(data.text, 600).trim();
-  } catch { return ""; }
+  for (let attempt = 0; attempt < 2; attempt++) {   // one retry if the caption service hiccups
+    try {
+      const data = await postJSON(CONFIG.translate.sttEndpoint, { id: uid(), lang: S.lang, mime: blob.type, audio }, CONFIG.translate.sttTimeoutMs);
+      return clip(data.text, 600).trim();
+    } catch {}
+  }
+  return "";
 }
 
 
@@ -1193,10 +1228,17 @@ function saveToLog(entry) {
   } catch {}
 }
 
-async function sendTranscript(raw, releasedAt) {
+async function sendTranscript(raw, releasedAt, spoke) {
   const text = clip(raw, 600).replace(/\s+/g, " ").trim();
   if (!text || text.replace(/[^\p{L}\p{N}]/gu, "").length < 2) {
     setCaption({ who: t("youWho"), main: t("noCaption"), sub: t("voiceSent") });
+    if (spoke) {
+      // They talked but no words came back: tell the crew instead of silently dropping it.
+      const id = uid(), notes = Object.fromEntries(allLanguages().map((l) => [l.code, STR[l.code].voiceOnly]));
+      broadcast({ type: "tx", id, from: S.name, srcLang: S.lang, text: notes[S.lang], translations: notes, voiceOnly: true, ts: Date.now() });
+      saveToLog({ id, kind: "voice", text: notes[S.lang], translations: notes, failed: false });
+      addLog({ who: t("youWho"), main: t("voiceOnly"), sub: "" });
+    }
     return;
   }
   const id = uid();
@@ -1239,6 +1281,8 @@ function onData(peerId, msg) {
       break;
     case "ptt":
       p.talking = !!msg.on;
+      p.talkingAt = Date.now();
+      if (msg.on && S.transmitting && Date.now() - (S.txStartedAt || 0) < 2000 && S.myId > peerId) yieldTalk(p);
       if (!msg.on) rogerBeep();
       renderRoster();
       if (!msg.on) pumpSpeech();
@@ -1261,7 +1305,7 @@ function onTx(p, msg) {
   setCaption(cap);
   addLog(cap);
   if (typeof msg.lat === "number") { S.lastLatency = msg.lat; renderDiag(); }
-  if (S.speak && tr && src !== S.lang) queueSpeech(tr, S.lang);
+  if (S.speak && tr && src !== S.lang && !msg.voiceOnly) queueSpeech(tr, S.lang);
 }
 
 /* =====================================================================
