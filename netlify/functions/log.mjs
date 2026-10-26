@@ -1,6 +1,7 @@
 // log.mjs — crew message log, kept for 24 hours (see netlify/lib/crew-log.js).
 //
-// POST { crew, who, lang, id, kind, text, translations, failed }   → saves one timestamped message (the app)
+// POST { crew, who, lang, id, kind, text, translations, failed, subId, alert, urgent }
+//      → saves one timestamped message (the app) and sends lock-screen alerts to the rest of the crew
 // GET    ?crew=Beaver|all                                           → the last 24 hours (foreman page)
 // DELETE ?crew=Beaver|all                                           → erase that crew's saved messages
 //
@@ -8,6 +9,7 @@
 // refused and Netlify rate-limits each IP.
 
 import { CREWS, KEEP_MS, logStore, keyTime, purgeExpired, eraseAll } from "../lib/crew-log.js";
+import { notifyCrew } from "../lib/push.js";
 
 const LANGS = ["en-US", "es-US"];
 const KINDS = ["voice", "safety"];
@@ -65,6 +67,20 @@ async function save(req, context) {
   await store.setJSON(`${crew}/${now}-${id}`, entry);
   // Clear this crew's records past 24 hours after replying (the hourly cleanup also covers it).
   context.waitUntil(purgeExpired([crew], store).catch(() => {}));
+
+  // Lock-screen alerts for everyone in the crew who isn't looking at the radio, in their language.
+  // Safety buttons carry their own title per language ("🚨 EMERGENCIA"); voice uses the speaker's name.
+  const alert = {};
+  for (const l of LANGS) { const a = str(body.alert?.[l], 60); if (a) alert[l] = a; }
+  const said = (l) => (l === entry.lang ? text : translations[l] || text);
+  context.waitUntil(notifyCrew({
+    crew,
+    exceptSubId: typeof body.subId === "string" ? body.subId : "",
+    tag: `${crew}-${id}`,
+    build: (l) => kind === "safety"
+      ? { title: alert[l] || alert["en-US"] || "Allen Radio", body: `${entry.who}: ${said(l)}`, urgent: body.urgent === true }
+      : { title: entry.who, body: said(l), urgent: false },
+  }).catch((err) => console.error("notify failed", err?.name)));
   return reply(200, { ok: true });
 }
 

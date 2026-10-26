@@ -19,6 +19,7 @@ C:\Users\<you>\Projects\allen-field-radio\
 - Safety buttons (STOP, SLOW, HOLD TRAFFIC, CLEAR / GO, TRUCK COMING, BACK UP, EMERGENCY) play an alert and show/speak fixed wording in each person's language.
 - Every message is saved, timestamped, to the crew log (Netlify Blobs store `crew-log`) and **deleted after 24 hours**: on each new message, and by the hourly `log-cleanup` scheduled function. Foreman view and CSV download of the last 24 hours at `/log.html` with an **Erase log** button (no passcode: anyone with the link can read or erase the last 24 hours).
 - Installable: Add to Home Screen gives an Allen Radio icon and full-screen app.
+- Lock-screen alerts (Web Push): crew members who turn on alerts get each message and safety button as a notification, in their language, whenever the radio isn't on their screen. iPhones need the Home Screen app (iOS 16.4+). Text only, no live voice. Subscriptions and VAPID keys live in the Netlify Blobs store `push` (keys are created automatically; nothing to configure). Worker: `push-sw.js`; server: `netlify/functions/push.mjs` and `netlify/lib/push.js`; alerts are sent from `log.mjs` when a message is saved.
 - Tap the big button to talk and tap again to send. The mic turns itself off after 30 s (`CONFIG.maxTalkSeconds`).
 - The translation shows in the card under the button, with the original underneath and older messages listed below.
 

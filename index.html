@@ -151,6 +151,13 @@
     <div class="chips" id="chips"></div>
     <div class="alone hidden" id="alone" data-i18n="alone">No one else on yet.</div>
 
+    <div class="install hidden" id="alertsCard">
+      <b data-i18n="alertsTitle">Get alerts when your phone is locked</b>
+      <span id="alertsText"></span>
+      <button class="ibtn hidden" id="alertsBtn" data-i18n="alertsOn">Turn on alerts</button>
+      <button class="x" id="alertsClose" aria-label="Close">✕</button>
+    </div>
+
     <div id="safety" class="hidden">
       <div class="sec" data-i18n="safety">Safety</div>
       <div class="presets" id="presets"></div>
@@ -172,6 +179,9 @@
     <div class="history" id="log"></div>
 
     <div class="foot">
+      <div class="fine hidden" id="alertsStatus"><span data-i18n="alertsStatusOn">Lock-screen alerts are on.</span>
+        <button class="linkbtn" id="alertsOffBtn" data-i18n="alertsOff">Turn off</button></div>
+      <button class="linkbtn hidden" id="alertsOnLink" data-i18n="alertsOn">Turn on alerts</button>
       <label><input type="checkbox" id="speakToggle"> <span data-i18n="readAloud">Read translations aloud</span></label><br>
       <button class="linkbtn" id="changeBtn" data-i18n="change">Change crew, name or language</button>
       <a class="linkbtn" href="log.html" data-i18n="crewLog">Crew log (foreman)</a>
@@ -263,6 +273,7 @@ const S = {
   peers: new Map(),            // peerId -> { id, name, lang, call, conn, outCall, outConn, audio, talking }
   transmitting: false, talkTimer: null, capture: null,
   log: [], speechQueue: [], speaking: false, lastLatency: null,
+  subId: store.get("subId", ""), seenTimer: null,
 };
 
 const allLanguages = () => CONFIG.languages;
@@ -300,6 +311,10 @@ const STR = {
     confirmClear: "Clear the chat for everyone on the {crew} crew and erase the crew log? This can't be undone.",
     micBlocked: "Mic blocked — listen-only mode.", sttConflict: "This phone can't caption and transmit at once — switching captions to server mode.",
     micLost: "Mic lost. Leave and rejoin the channel.", reconnecting: "Reconnecting…", channelFull: "Channel full.", connError: "Connection error: {e}",
+    alertsTitle: "Get alerts when your phone is locked", alertsWhy: "Messages and safety buttons show up as notifications when the radio isn't open.",
+    alertsOn: "Turn on alerts", alertsInstall: "First add this app to your Home Screen (Share ⬆︎ → Add to Home Screen), then open it from there.",
+    alertsBlocked: "Alerts are blocked. Turn on notifications for Allen Radio in your phone's Settings.", alertsStatusOn: "Lock-screen alerts are on.",
+    alertsOff: "Turn off", alertsFail: "Couldn't turn on alerts. Try again.",
   },
   "es-US": {
     title: "Radio de campo", installTitle: "Instale la app", installBtn: "Instalar",
@@ -319,6 +334,10 @@ const STR = {
     confirmClear: "¿Borrar el chat para toda la cuadrilla {crew} y el registro? No se puede deshacer.",
     micBlocked: "Micrófono bloqueado — solo escuchar.", sttConflict: "Este teléfono no puede transcribir y transmitir a la vez — usando el servidor.",
     micLost: "Se perdió el micrófono. Salga y vuelva a entrar.", reconnecting: "Reconectando…", channelFull: "Canal lleno.", connError: "Error de conexión: {e}",
+    alertsTitle: "Reciba alertas con el teléfono bloqueado", alertsWhy: "Los mensajes y botones de seguridad llegan como notificaciones cuando la radio no está abierta.",
+    alertsOn: "Activar alertas", alertsInstall: "Primero agregue esta app a su pantalla de inicio (Compartir ⬆︎ → Agregar a inicio) y ábrala desde ahí.",
+    alertsBlocked: "Las alertas están bloqueadas. Active las notificaciones de Allen Radio en Ajustes.", alertsStatusOn: "Alertas activadas.",
+    alertsOff: "Desactivar", alertsFail: "No se pudieron activar las alertas. Intente de nuevo.",
   },
 };
 
@@ -735,6 +754,7 @@ function broadcast(msg) {
 }
 
 function leaveChannel() {
+  markSeen(true);   // off the radio now, so alerts apply
   S.joined = false;
   for (const id of [...S.peers.keys()]) dropPeer(id);
   if (S.peer) { try { S.peer.destroy(); } catch {} }
@@ -967,7 +987,7 @@ function saveToLog(entry) {
   try {
     fetch(CONFIG.translate.logEndpoint, {
       method: "POST", keepalive: true, headers: { "content-type": "application/json" },
-      body: JSON.stringify({ crew: S.channel, who: S.name, lang: S.lang, ...entry }),
+      body: JSON.stringify({ crew: S.channel, who: S.name, lang: S.lang, subId: S.subId || "", ...entry }),
     }).catch(() => {});
   } catch {}
 }
@@ -979,8 +999,8 @@ async function sendTranscript(raw, releasedAt) {
     return;
   }
   const id = uid();
-  const targets = [...new Set([...S.peers.values()].filter((p) => p.conn && p.conn.open && p.lang).map((p) => p.lang))]
-    .filter((l) => l !== S.lang);
+  // Always translate into the other language, so phones that are away get alerts in theirs too.
+  const targets = allLanguages().map((l) => l.code).filter((l) => l !== S.lang);
   setCaption({ who: t("youWho"), main: text, sub: targets.length ? t("translating") : "" });
 
   let translations = {}, failed = false;
@@ -1060,7 +1080,8 @@ function sendPreset(key, colorKey) {
   const id = uid();
   broadcast({ type: "preset", id, from: S.name, key, color, ts: Date.now() });
   const other = S.lang === "es-US" ? "en-US" : "es-US";
-  saveToLog({ id, kind: "safety", text: presetText(p, S.lang, color), translations: { [other]: presetText(p, other, color) }, failed: false });
+  saveToLog({ id, kind: "safety", text: presetText(p, S.lang, color), translations: { [other]: presetText(p, other, color) }, failed: false,
+    alert: { "en-US": `${p.icon} ${p.key}`, "es-US": `${p.icon} ${p.es}` }, urgent: !!p.alarm });
   attentionTone(p.alarm);
   if (p.alarm) flashLcd();
   const cap = { who: t("youSent"), main: `${p.icon} ${presetText(p, S.lang, color)}`, sub: presetLabel(p), alarm: p.alarm,
@@ -1086,6 +1107,93 @@ function onPreset(peer, msg) {
 }
 
 /* =====================================================================
+   LOCK-SCREEN ALERTS (Web Push)
+   ===================================================================== */
+const pushSupported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+const isStandalone = () => window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+
+function showAlertsCard(textKey, withButton) {
+  if (store.get("alertsCardClosed", false)) return;
+  $("alertsText").dataset.i18n = textKey;
+  $("alertsText").textContent = t(textKey);
+  $("alertsBtn").classList.toggle("hidden", !withButton);
+  $("alertsCard").classList.remove("hidden");
+}
+
+function alertsOnUI(on) {
+  $("alertsStatus").classList.toggle("hidden", !on);
+  $("alertsOnLink").classList.toggle("hidden", on || !pushSupported || Notification.permission === "denied");
+  if (on) $("alertsCard").classList.add("hidden");
+}
+
+const b64ToBytes = (b64) => {
+  const s = atob((b64 + "=".repeat((4 - (b64.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(s, (c) => c.charCodeAt(0));
+};
+
+const pushApi = (body) => fetch("/.netlify/functions/push", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+
+// Subscribe (or refresh crew/language/name on an existing subscription).
+async function subscribePush() {
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    const { publicKey } = await (await fetch("/.netlify/functions/push")).json();
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(publicKey) });
+  }
+  const res = await pushApi({ action: "subscribe", subscription: sub.toJSON(), crew: S.channel, lang: S.lang, name: S.name });
+  const data = await res.json();
+  if (!res.ok || !data.subId) throw new Error("subscribe failed");
+  S.subId = data.subId; store.set("subId", S.subId);
+  alertsOnUI(true);
+  markSeen(false);
+}
+
+async function setupAlerts() {
+  alertsOnUI(false);
+  // iPhones only allow alerts from the Home Screen app, not a Safari/Chrome tab.
+  if (IS_IOS && !isStandalone()) { showAlertsCard("alertsInstall", false); return; }
+  if (!pushSupported) return;
+  try { await navigator.serviceWorker.register("/push-sw.js", { scope: "/" }); } catch { return; }
+  if (Notification.permission === "granted") { subscribePush().catch(() => {}); return; }
+  if (Notification.permission === "denied") { showAlertsCard("alertsBlocked", false); return; }
+  showAlertsCard("alertsWhy", true);
+}
+
+// Tell the server whether the radio is on screen, so alerts only go to phones that are away.
+function markSeen(away) {
+  if (!S.subId) return;
+  const body = JSON.stringify({ action: "seen", subId: S.subId, away });
+  if (away && navigator.sendBeacon) navigator.sendBeacon("/.netlify/functions/push", body);
+  else fetch("/.netlify/functions/push", { method: "POST", headers: { "content-type": "application/json" }, body, keepalive: true }).catch(() => {});
+}
+
+setInterval(() => { if (S.joined && S.subId && document.visibilityState === "visible") markSeen(false); }, 30000);
+document.addEventListener("visibilitychange", () => markSeen(document.visibilityState !== "visible"));
+window.addEventListener("pagehide", () => markSeen(true));
+
+$("alertsBtn").addEventListener("click", async () => {
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") { showAlertsCard("alertsBlocked", false); return; }
+    await subscribePush();
+  } catch { toast(t("alertsFail")); }
+});
+$("alertsOnLink").addEventListener("click", () => $("alertsBtn").click());
+$("alertsClose").addEventListener("click", () => { store.set("alertsCardClosed", true); $("alertsCard").classList.add("hidden"); });
+$("alertsOffBtn").addEventListener("click", async () => {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) await sub.unsubscribe();
+  } catch {}
+  if (S.subId) pushApi({ action: "unsubscribe", subId: S.subId }).catch(() => {});
+  S.subId = ""; store.set("subId", ""); store.set("alertsCardClosed", false);
+  alertsOnUI(false);
+  showAlertsCard("alertsWhy", true);
+});
+
+/* =====================================================================
    WIRING
    ===================================================================== */
 $("joinBtn").addEventListener("click", async () => {
@@ -1102,6 +1210,7 @@ $("joinBtn").addEventListener("click", async () => {
   renderRoster(); renderDiag();
   claimSlot(1);
   keepAwake();
+  setupAlerts();
 });
 
 $("changeBtn").addEventListener("click", () => { if (S.transmitting) pttUp(); leaveChannel(); renderLangButtons(); renderCrewButtons(); });
@@ -1164,7 +1273,10 @@ const typing = (e) => /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName);
 document.addEventListener("keydown", (e) => { if (e.code === "Space" && !e.repeat && !typing(e) && S.joined) { e.preventDefault(); talkTap(); } });
 
 // Remove any service worker or cache left by the old V3.5 radio at this address.
-if (navigator.serviceWorker) navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister())).catch(() => {});
+if (navigator.serviceWorker) navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => {
+  const url = (r.active || r.waiting || r.installing || {}).scriptURL || "";
+  if (!url.endsWith("/push-sw.js")) r.unregister();
+})).catch(() => {});
 if (window.caches) caches.keys().then((ks) => ks.forEach((k) => caches.delete(k))).catch(() => {});
 
 $("joinName").value = S.name;
