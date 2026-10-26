@@ -55,6 +55,18 @@ async function counts() {
 export default async (req) => {
   if (!sameSite(req)) return reply(403, { error: "forbidden" });
   try {
+    if (req.method === "GET" && new URL(req.url).searchParams.has("diag")) {
+      // Recent reports from phones stuck reconnecting (last hour).
+      const ds = getStore("presence-diag");
+      const { blobs } = await ds.list();
+      const out = [];
+      for (const { key } of blobs) {
+        const d = await ds.get(key, { type: "json" });
+        if (!d || Date.now() - d.t > 3600_000) { await ds.delete(key); continue; }
+        out.push({ phone: key, ...d });
+      }
+      return reply(200, out);
+    }
     if (req.method === "GET") return reply(200, await counts());
     if (req.method !== "POST") return reply(405, { error: "method_not_allowed" });
 
@@ -68,7 +80,9 @@ export default async (req) => {
 
     // A phone stuck reconnecting sends its recent connection events here for the function log.
     if (body.diag && typeof body.diag === "object") {
-      console.log("radio stuck", body.deviceId.slice(0, 6), String(body.crew).slice(0, 10), JSON.stringify(body.diag).slice(0, 1500));
+      const diag = JSON.stringify(body.diag).slice(0, 1500);
+      console.log("radio stuck", body.deviceId.slice(0, 6), String(body.crew).slice(0, 10), diag);
+      await getStore("presence-diag").set(`${body.deviceId.slice(0, 6)}`, JSON.stringify({ t: Date.now(), crew: String(body.crew).slice(0, 10), diag: JSON.parse(diag.endsWith("}") ? diag : "{}") }));
       return reply(200, { ok: true });
     }
 
