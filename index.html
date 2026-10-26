@@ -106,6 +106,8 @@
   .talk.on { background: var(--red); box-shadow: 0 0 0 6px rgba(208,2,27,.18), 0 6px 16px rgba(208,2,27,.35); }
   .talk:disabled { background: #b9bcc0; box-shadow: none; }
   .crews { grid-template-columns: 1fr 1fr; }
+  .cnt { display: block; margin-top: 3px; font-size: 12px; font-weight: 700; color: var(--green); letter-spacing: .02em; }
+  .cnt::before { content: "● "; }
   .install { position: relative; background: #fff4ec; border: 1px solid #ffd2b5; border-radius: 14px; box-shadow: var(--shadow); padding: 12px 40px 12px 14px; font-size: 15px; margin-bottom: 16px; }
   .install b { display: block; margin-bottom: 2px; }
   .install .x { position: absolute; top: 6px; right: 6px; background: none; border: 0; font-size: 18px; color: var(--muted); padding: 6px 10px; }
@@ -208,6 +210,7 @@
    ===================================================================== */
 const CONFIG = {
   crews: ["Beaver", "Powell", "Ian", "Blake"],   // each crew is its own channel
+  presenceEndpoint: "/.netlify/functions/presence",
   peerPrefix: "allen-field-radio",
   maxSlots: 12,
   peerOptions: { debug: 0 },
@@ -280,7 +283,8 @@ const S = {
   peers: new Map(),            // peerId -> { id, name, lang, call, conn, outCall, outConn, audio, talking }
   transmitting: false, talkTimer: null, capture: null,
   log: [], speechQueue: [], speaking: false, lastLatency: null,
-  subId: store.get("subId", ""), seenTimer: null,
+  subId: store.get("subId", ""), seenTimer: null, crewCounts: {},
+  deviceId: store.get("deviceId", "") || (() => { const id = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, "0")).join(""); store.set("deviceId", id); return id; })(),
 };
 
 const allLanguages = () => CONFIG.languages;
@@ -323,6 +327,7 @@ const STR = {
     alertsBlocked: "Alerts are blocked. Turn on notifications for Allen Radio in your phone's Settings.", alertsStatusOn: "Lock-screen alerts are on.",
     alertsOff: "Turn off", alertsFail: "Couldn't turn on alerts. Try again.",
     joinTitle: "Join your crew", joinSub: "Enter your name, then pick your language and crew.",
+    onNow: "{n} on",
   },
   "es-US": {
     title: "Radio de campo", installTitle: "Instale la app", installBtn: "Instalar",
@@ -347,6 +352,7 @@ const STR = {
     alertsBlocked: "Las alertas están bloqueadas. Active las notificaciones de Allen Radio en Ajustes.", alertsStatusOn: "Alertas activadas.",
     alertsOff: "Desactivar", alertsFail: "No se pudieron activar las alertas. Intente de nuevo.",
     joinTitle: "Únase a su cuadrilla", joinSub: "Escriba su nombre y elija su idioma y cuadrilla.",
+    onNow: "{n} en línea",
   },
 };
 
@@ -376,7 +382,7 @@ function renderLangButtons() {
     const b = document.createElement("button");
     b.className = "lang" + (l.code === S.lang ? " on" : "");
     b.textContent = l.label;
-    b.addEventListener("click", () => { S.lang = l.code; $("joinErr").textContent = ""; renderLangButtons(); applyLang(); renderPresets(); });
+    b.addEventListener("click", () => { S.lang = l.code; $("joinErr").textContent = ""; renderLangButtons(); applyLang(); renderPresets(); renderCrewButtons(); });
     box.appendChild(b);
   }
 }
@@ -455,6 +461,8 @@ function renderCrewButtons() {
     const b = document.createElement("button");
     b.className = "lang" + (c === S.channel ? " on" : "");
     b.textContent = c;
+    const n = S.crewCounts[c] || 0;
+    if (n) { const k = document.createElement("span"); k.className = "cnt"; k.textContent = t("onNow", { n }); b.appendChild(k); }
     b.addEventListener("click", () => { S.channel = c; $("joinErr").textContent = ""; renderCrewButtons(); });
     box.appendChild(b);
   }
@@ -1182,14 +1190,16 @@ async function setupAlerts() {
 }
 
 // Tell the server whether the radio is on screen, so alerts only go to phones that are away.
+// Check in while the radio is on screen: feeds the live crew counts on the start screen and
+// tells lock-screen alerts this phone is already looking at the radio.
 function markSeen(away) {
-  if (!S.subId) return;
-  const body = JSON.stringify({ action: "seen", subId: S.subId, away });
-  if (away && navigator.sendBeacon) navigator.sendBeacon("/.netlify/functions/push", body);
-  else fetch("/.netlify/functions/push", { method: "POST", headers: { "content-type": "application/json" }, body, keepalive: true }).catch(() => {});
+  if (!S.channel || (!S.joined && !away)) return;
+  const body = JSON.stringify({ deviceId: S.deviceId, crew: S.channel, name: S.name, subId: S.subId || undefined, away });
+  if (away && navigator.sendBeacon) navigator.sendBeacon(CONFIG.presenceEndpoint, body);
+  else fetch(CONFIG.presenceEndpoint, { method: "POST", headers: { "content-type": "application/json" }, body, keepalive: true }).catch(() => {});
 }
 
-setInterval(() => { if (S.joined && S.subId && document.visibilityState === "visible") markSeen(false); }, 30000);
+setInterval(() => { if (S.joined && document.visibilityState === "visible") markSeen(false); }, 20000);
 document.addEventListener("visibilitychange", () => markSeen(document.visibilityState !== "visible"));
 window.addEventListener("pagehide", () => markSeen(true));
 
@@ -1232,9 +1242,22 @@ $("joinBtn").addEventListener("click", async () => {
   claimSlot(1);
   keepAwake();
   setupAlerts();
+  setTimeout(() => markSeen(false), 1500);
 });
 
-$("changeBtn").addEventListener("click", () => { if (S.transmitting) pttUp(); leaveChannel(); renderLangButtons(); renderCrewButtons(); });
+// Live "● 2 on" counts on the crew buttons while the start screen is showing.
+async function refreshCrewCounts() {
+  if ($("joinView").classList.contains("hidden") || document.visibilityState !== "visible") return;
+  try {
+    const data = await (await fetch(CONFIG.presenceEndpoint)).json();
+    S.crewCounts = data.counts || {};
+    renderCrewButtons();
+  } catch {}
+}
+refreshCrewCounts();
+setInterval(refreshCrewCounts, 10000);
+
+$("changeBtn").addEventListener("click", () => { if (S.transmitting) pttUp(); leaveChannel(); renderLangButtons(); renderCrewButtons(); refreshCrewCounts(); });
 
 // Install as an app: Android shows an Install button; iPhone gets Share → Add to Home Screen steps.
 const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
