@@ -956,8 +956,7 @@ async function sendTranscript(raw, releasedAt) {
   S.lastLatency = lat;
   broadcast({ type: "tx", id, from: S.name, srcLang: S.lang, text, translations, ts: Date.now(), lat });
   saveToLog({ id, kind: "voice", text, translations, failed });
-  const sentAs = Object.values(translations).find((v) => typeof v === "string" && v);
-  const cap = { who: t("youWho"), main: text, sub: failed ? t("notTranslated") : sentAs ? t("sentAs", { text: sentAs }) : "" };
+  const cap = { who: t("youWho"), main: text, sub: failed ? t("notTranslated") : "" };
   setCaption(cap);
   addLog(cap);
   renderDiag();
@@ -994,7 +993,7 @@ function onTx(p, msg) {
   const tr = msg.translations && typeof msg.translations === "object" ? clip(msg.translations[S.lang], 600) : "";
   let cap;
   if (src === S.lang) cap = { who, main: text, sub: "" };
-  else if (tr) cap = { who, main: tr, sub: text };
+  else if (tr) cap = { who, main: tr, sub: "" };   // translation only: the original words stay hidden
   else cap = { who, main: text, sub: "(not translated)" };
   setCaption(cap);
   addLog(cap);
