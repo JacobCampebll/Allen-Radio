@@ -17,7 +17,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #f6f6f4; --card: #ffffff; --ink: #1b1b1b; --muted: #7a7f85; --line: #e6e6e2; --line2: #efefeb;
+    --bg: #f4f5f7; --card: #ffffff; --ink: #1b1b1b; --muted: #6b7280; --line: #e5e7eb; --line2: #eef0f2;
+    --shadow: 0 1px 3px rgba(16,24,40,.06);
     --bar: #16181b; --orange: #ff6a13; --orange-dk: #e25500; --red: #d0021b; --green: #22a447;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -26,44 +27,46 @@
   button { font: inherit; cursor: pointer; }
 
   /* Header */
-  .top { background: var(--bar); padding: 14px 16px; padding-top: max(14px, env(safe-area-inset-top));
+  .top { background: var(--bar); padding: 12px 18px; padding-top: max(12px, env(safe-area-inset-top));
     display: flex; align-items: center; justify-content: space-between; }
-  .top img { height: 30px; display: block; }
+  .top img { height: 26px; display: block; }
   .top span { color: #c9cdd2; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .led { width: 10px; height: 10px; border-radius: 50%; background: #3a3f45; display: inline-block; }
   .led.rx { background: var(--green); box-shadow: 0 0 8px var(--green); }
   .led.tx { background: var(--red); box-shadow: 0 0 8px var(--red); }
-  .strip { height: 5px; background: var(--orange); }
-  .wrap { max-width: 520px; margin: 0 auto; padding: 16px 16px 0; }
-  .sec { font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; margin: 6px 0 8px; }
+  .strip { height: 3px; background: var(--orange); }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 20px 18px 0; }
+  .sec { font-size: 11px; font-weight: 700; letter-spacing: .16em; color: #8a9099; text-transform: uppercase; margin: 4px 0 10px; }
 
   /* Join */
-  h1 { font-size: 24px; margin: 6px 0 14px; }
-  input.name { width: 100%; padding: 14px; font: 600 20px "Source Sans 3", system-ui; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); }
+  .hello { margin-bottom: 22px; }
+  .hello .h1 { font-size: 26px; font-weight: 700; letter-spacing: -.01em; }
+  .hello .h2 { color: var(--muted); font-size: 15px; margin-top: 2px; }
+  input.name { width: 100%; padding: 15px; font: 600 18px "Source Sans 3", system-ui; border: 1px solid #dfe2e6; border-radius: 12px; background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
   .langs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .lang { padding: 16px 8px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font-size: 18px; font-weight: 700; color: var(--ink); }
-  .lang.on { border: 2px solid var(--orange); background: #fff4ec; }
+  .lang { padding: 17px 8px; border-radius: 12px; border: 1px solid #dfe2e6; background: var(--card); font-size: 17px; font-weight: 700; color: var(--ink); box-shadow: var(--shadow); }
+  .lang.on { border: 2px solid var(--orange); background: var(--card); box-shadow: 0 0 0 4px rgba(255,106,19,.12); }
   .err { color: var(--red); font-size: 15px; min-height: 20px; margin-top: 10px; text-align: center; }
   .field { margin-bottom: 16px; }
 
   /* People */
-  .chips { background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
-  .chip { display: flex; align-items: center; gap: 10px; padding: 12px 14px; font-size: 18px; font-weight: 600; border-top: 1px solid var(--line2); }
+  .chips { background: var(--card); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 16px; overflow: hidden; box-shadow: var(--shadow); }
+  .chip { display: flex; align-items: center; gap: 10px; padding: 13px 16px; font-size: 17px; font-weight: 600; border-top: 1px solid var(--line2); }
   .chip:first-child { border-top: 0; }
   .chip .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); flex: none; }
   .chip .nm { flex: 1; }
-  .chip .lg { font-size: 14px; font-weight: 700; color: var(--muted); }
+  .chip .lg { font-size: 12px; font-weight: 700; color: var(--muted); background: #f1f2f4; border-radius: 6px; padding: 2px 7px; }
   .chip.live { background: #eaf7ee; }
   .chip.live .lg::before { content: attr(data-talking) " · "; color: var(--green); }
   .alone { font-size: 15px; color: var(--muted); margin: -8px 2px 14px; }
 
   /* Latest */
-  .card { background: var(--card); border: 1px solid var(--line); border-left: 6px solid var(--orange); border-radius: 12px; padding: 14px 16px; min-height: 96px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--orange); border-radius: 14px; padding: 14px 16px; min-height: 96px; box-shadow: var(--shadow); }
   .card.flash { animation: flash .35s steps(1) 5; }
   @keyframes flash { 0% { background: var(--red); color: #fff; } 50% { background: var(--card); color: var(--ink); } }
   .cap-empty { color: var(--muted); font-size: 16px; padding: 14px 0; }
   .cap-who { font-size: 14px; color: var(--muted); font-weight: 600; }
-  .cap-main { font-size: 26px; font-weight: 700; line-height: 1.25; margin: 4px 0 8px; word-wrap: break-word; }
+  .cap-main { font-size: 24px; font-weight: 700; line-height: 1.25; margin: 4px 0 8px; word-wrap: break-word; }
   .cap-sub { font-size: 16px; color: var(--muted); word-wrap: break-word; }
   .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 6px; background: #ffe7a3; color: #5a4300; margin-left: 6px; }
 
@@ -76,10 +79,14 @@
   .item .s { font-size: 14px; color: #8a8f95; }
   .item.alarm .m { color: var(--red); }
 
-  .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .preset { position: relative; min-height: 46px; border-radius: 10px; border: 0; color: #fff; font-weight: 800; font-size: 14px; line-height: 1.1; padding: 4px 16px;
-    box-shadow: 0 3px 0 rgba(0,0,0,.25); }
-  .preset:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.25); }
+  .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .preset { position: relative; display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 58px; border-radius: 12px; border: 0; color: #fff;
+    font-weight: 800; font-size: 15px; letter-spacing: .08em; line-height: 1.1; padding: 4px 16px; box-shadow: 0 2px 6px rgba(16,24,40,.12); }
+  .preset:active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(16,24,40,.12); }
+  .pi { display: inline-flex; flex: none; }
+  .pi svg { width: 22px; height: 22px; }
+  .cap-main .pi svg { width: 26px; height: 26px; vertical-align: -4px; margin-right: 8px; }
+  .item .pi svg { width: 17px; height: 17px; vertical-align: -3px; margin-right: 6px; }
   .preset.wide { grid-column: span 2; }
   .preset .dot { position: absolute; top: 4px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: #ffd400; }
 
@@ -91,20 +98,19 @@
   .fine { font-size: 12px; margin-top: 4px; }
   .diag { font: 11px ui-monospace, monospace; color: #a3a8ad; margin-top: 4px; }
   .dock { position: sticky; bottom: 0; padding: 14px 16px; padding-bottom: max(16px, env(safe-area-inset-bottom));
-    background: linear-gradient(rgba(246,246,244,0), var(--bg) 30%); max-width: 520px; margin: 0 auto; }
-  .btn { width: 100%; height: 76px; border: 0; border-radius: 14px; background: var(--orange); color: #fff;
-    font: 700 22px "Source Sans 3", system-ui; display: flex; gap: 10px; align-items: center; justify-content: center;
-    box-shadow: 0 6px 16px rgba(255,106,19,.35); user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+    background: linear-gradient(rgba(244,245,247,0), var(--bg) 35%); max-width: 520px; margin: 0 auto; }
+  .btn { width: 100%; height: 64px; border: 0; border-radius: 16px; background: var(--orange); color: #fff;
+    font: 700 20px "Source Sans 3", system-ui; display: flex; gap: 10px; align-items: center; justify-content: center;
+    box-shadow: 0 10px 24px rgba(255,106,19,.30); user-select: none; -webkit-user-select: none; touch-action: manipulation; }
   .btn svg { width: 24px; height: 24px; fill: currentColor; }
   .talk.on { background: var(--red); box-shadow: 0 0 0 6px rgba(208,2,27,.18), 0 6px 16px rgba(208,2,27,.35); }
   .talk:disabled { background: #b9bcc0; box-shadow: none; }
   .crews { grid-template-columns: 1fr 1fr; }
-  .install { position: relative; background: #fff4ec; border: 1px solid #ffd2b5; border-radius: 12px; padding: 12px 40px 12px 14px; font-size: 15px; margin-bottom: 16px; }
+  .install { position: relative; background: #fff4ec; border: 1px solid #ffd2b5; border-radius: 14px; box-shadow: var(--shadow); padding: 12px 40px 12px 14px; font-size: 15px; margin-bottom: 16px; }
   .install b { display: block; margin-bottom: 2px; }
   .install .x { position: absolute; top: 6px; right: 6px; background: none; border: 0; font-size: 18px; color: var(--muted); padding: 6px 10px; }
   .install .ibtn { margin-top: 8px; border: 0; border-radius: 10px; background: var(--orange); color: #fff; font-weight: 700; padding: 10px 16px; }
-  .preset { min-height: 54px !important; font-size: 15px !important; }
-  .carpick { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-top: 8px; }
+  .carpick { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin-top: 10px; box-shadow: var(--shadow); }
   .swatches { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
   .swatch-btn { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: #fff;
     font: 700 16px "Source Sans 3", system-ui; color: var(--ink); text-align: left; }
@@ -114,7 +120,7 @@
   .carpick .linkbtn { display: block; margin: 8px auto 0; }
   .sec-row { display: flex; justify-content: space-between; align-items: center; margin: 6px 0 8px; }
   .sec-row .sec { margin: 0; }
-  .clearbtn { background: #fff; border: 1px solid #f1b5b5; color: var(--red); border-radius: 8px; padding: 6px 10px; font: 700 13px "Source Sans 3", system-ui; }
+  .clearbtn { background: #fff; border: 1px solid #f1b5b5; color: var(--red); border-radius: 10px; padding: 6px 10px; font: 700 13px "Source Sans 3", system-ui; }
   .preset-note { font-size: 13px; color: var(--muted); margin: 6px 2px 16px; }
   .preset-note i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #ffd400; border: 1px solid #c9a800; }
   .toast { position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%); background: var(--bar); color: #fff;
@@ -129,6 +135,7 @@
 <!-- ===================== JOIN ===================== -->
 <section id="joinView">
   <div class="wrap">
+    <div class="hello"><div class="h1" data-i18n="joinTitle">Join your crew</div><div class="h2" data-i18n="joinSub">Enter your name, then pick your language and crew.</div></div>
     <div class="install hidden" id="installTip">
       <b data-i18n="installTitle">Install the app</b>
       <span id="installText"></span>
@@ -229,14 +236,14 @@ const CONFIG = {
   // Safety buttons: fixed wording, no translation wait. Set verified: true only after the bilingual crew review.
   showPresets: true,
   presets: [
-    { key: "STOP", es: "ALTO", icon: "✋", color: "#d0021b", alarm: true, wide: true, verified: false,
+    { key: "STOP", es: "ALTO", icon: "✋", color: "#c8102e", alarm: true, wide: true, verified: false,
       text: { "en-US": "Stop! Stop now!", "es-US": "¡Alto! ¡Deténgase ya!" } },
     // Pick the car's color first; {color} is filled in for each listener's language.
-    { key: "LAST CAR", es: "ÚLTIMO CARRO", icon: "🚗", color: "#1f2937", pickColor: true, verified: false,
+    { key: "LAST CAR", es: "ÚLTIMO CARRO", icon: "🚗", color: "#334155", pickColor: true, verified: false,
       text: { "en-US": "Last car: {color}.", "es-US": "Último carro: {color}." } },
-    { key: "ALL CLEAR", es: "TODO LIBRE", icon: "✅", color: "#1f8a3b", verified: false,
+    { key: "ALL CLEAR", es: "TODO LIBRE", icon: "✅", color: "#15803d", verified: false,
       text: { "en-US": "All clear.", "es-US": "Todo libre." } },
-    { key: "EMERGENCY", es: "EMERGENCIA", icon: "🚨", color: "#8f0010", alarm: true, wide: true, verified: false,
+    { key: "EMERGENCY", es: "EMERGENCIA", icon: "🚨", color: "#7f1d1d", alarm: true, wide: true, verified: false,
       text: { "en-US": "Emergency! Stop work.", "es-US": "¡Emergencia! Paren el trabajo." } },
   ],
 
@@ -315,6 +322,7 @@ const STR = {
     alertsOn: "Turn on alerts", alertsInstall: "First add this app to your Home Screen (Share ⬆︎ → Add to Home Screen), then open it from there.",
     alertsBlocked: "Alerts are blocked. Turn on notifications for Allen Radio in your phone's Settings.", alertsStatusOn: "Lock-screen alerts are on.",
     alertsOff: "Turn off", alertsFail: "Couldn't turn on alerts. Try again.",
+    joinTitle: "Join your crew", joinSub: "Enter your name, then pick your language and crew.",
   },
   "es-US": {
     title: "Radio de campo", installTitle: "Instale la app", installBtn: "Instalar",
@@ -338,6 +346,7 @@ const STR = {
     alertsOn: "Activar alertas", alertsInstall: "Primero agregue esta app a su pantalla de inicio (Compartir ⬆︎ → Agregar a inicio) y ábrala desde ahí.",
     alertsBlocked: "Las alertas están bloqueadas. Active las notificaciones de Allen Radio en Ajustes.", alertsStatusOn: "Alertas activadas.",
     alertsOff: "Desactivar", alertsFail: "No se pudieron activar las alertas. Intente de nuevo.",
+    joinTitle: "Únase a su cuadrilla", joinSub: "Escriba su nombre y elija su idioma y cuadrilla.",
   },
 };
 
@@ -408,11 +417,12 @@ function setStatus(msg) {
   else toast(nice);
 }
 
-function setCaption({ who = "", main = "", sub = "", badge = "", swatch = "" }) {
+function setCaption({ who = "", main = "", sub = "", badge = "", swatch = "", icon = "" }) {
   $("capEmpty").classList.toggle("hidden", !!(who || main || sub));
   const now = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   $("capWho").textContent = who && main ? `${who} · ${now}` : who;
   $("capMain").textContent = main;
+  if (icon) $("capMain").prepend(iconEl(icon));
   $("capSub").textContent = sub;
   if (badge) { const b = document.createElement("span"); b.className = "badge"; b.textContent = badge; $("capWho").appendChild(b); }
   if (swatch) { const c = document.createElement("span"); c.className = "swatch"; c.style.background = swatch; $("capMain").appendChild(c); }
@@ -430,6 +440,7 @@ function addLog(entry) {
     const t = document.createElement("div"); t.className = "t";
     t.textContent = `${e.who || ""} · ${e.time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
     const m = document.createElement("div"); m.className = "m"; m.textContent = e.main;
+    if (e.icon) m.prepend(iconEl(e.icon));
     if (e.swatch) { const c = document.createElement("span"); c.className = "swatch"; c.style.background = e.swatch; m.appendChild(c); }
     d.append(t, m);
     if (e.sub) { const s = document.createElement("div"); s.className = "s"; s.textContent = e.sub; d.appendChild(s); }
@@ -459,7 +470,7 @@ function renderPresets() {
     const b = document.createElement("button");
     b.className = "preset" + (p.wide ? " wide" : "");
     b.style.background = p.color;
-    b.textContent = `${p.icon} ${presetLabel(p)}`;
+    b.append(iconEl(p.key), presetLabel(p));
     if (!p.verified) { const dot = document.createElement("span"); dot.className = "dot"; dot.title = "Unverified wording"; b.appendChild(dot); }
     b.addEventListener("click", () => (p.pickColor ? toggleCarPick() : sendPreset(p.key)));
     box.appendChild(b);
@@ -1066,6 +1077,16 @@ function onTx(p, msg) {
 const carColor = (key) => CONFIG.carColors.find((c) => c.key === key);
 const presetLabel = (p) => (S.lang === "es-US" ? p.es : p.key);
 
+// Line icons for the safety buttons and messages (phone notifications keep the emoji in CONFIG).
+const SVG = (inner, w = 2.2) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+const PRESET_ICONS = {
+  "STOP": SVG('<path d="M7.9 2h8.2L22 7.9v8.2L16.1 22H7.9L2 16.1V7.9z"/><path d="M8 12h8"/>'),
+  "LAST CAR": SVG('<path d="M5 17h14v-5l-2-5H7l-2 5z"/><circle cx="7.5" cy="17" r="1.8"/><circle cx="16.5" cy="17" r="1.8"/><path d="M5 12h14"/>'),
+  "ALL CLEAR": SVG('<circle cx="12" cy="12" r="9.5"/><path d="M7.5 12.5l3 3 6-6.5"/>', 2.4),
+  "EMERGENCY": SVG('<path d="M12 3L2 20h20z"/><path d="M12 10v4"/><circle cx="12" cy="17" r=".6" fill="currentColor"/>'),
+};
+const iconEl = (key) => { const i = document.createElement("span"); i.className = "pi"; i.innerHTML = PRESET_ICONS[key] || ""; return i; };
+
 function presetText(p, lang, colorKey) {
   const line = p.text[lang] || p.text["en-US"] || p.key;
   const c = carColor(colorKey);
@@ -1084,7 +1105,7 @@ function sendPreset(key, colorKey) {
     alert: { "en-US": `${p.icon} ${p.key}`, "es-US": `${p.icon} ${p.es}` }, urgent: !!p.alarm });
   attentionTone(p.alarm);
   if (p.alarm) flashLcd();
-  const cap = { who: t("youSent"), main: `${p.icon} ${presetText(p, S.lang, color)}`, sub: presetLabel(p), alarm: p.alarm,
+  const cap = { who: t("youSent"), main: presetText(p, S.lang, color), icon: p.key, sub: presetLabel(p), alarm: p.alarm,
     swatch: color ? carColor(color).hex : "" };
   setCaption(cap);
   addLog(cap);
@@ -1099,7 +1120,7 @@ function onPreset(peer, msg) {
   if (navigator.vibrate) navigator.vibrate(p.alarm ? [400, 150, 400, 150, 400] : [150]);
   const color = p.pickColor && carColor(msg.color) ? msg.color : undefined;
   const line = presetText(p, S.lang, color);
-  const cap = { who: clip(msg.from, 20) || peer.name, main: `${p.icon} ${line}`, sub: presetLabel(p), alarm: p.alarm,
+  const cap = { who: clip(msg.from, 20) || peer.name, main: line, icon: p.key, sub: presetLabel(p), alarm: p.alarm,
     badge: p.verified ? "" : t("unverified"), swatch: color ? carColor(color).hex : "" };
   setCaption(cap);
   addLog(cap);
