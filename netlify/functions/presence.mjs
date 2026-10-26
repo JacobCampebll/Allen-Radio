@@ -1,10 +1,10 @@
 // presence.mjs — who's on the radio right now, per crew (for the counts on the start screen).
 //
-// POST { deviceId, crew, name, subId?, away? } → check-in every 20 s while the radio is on screen;
+// POST { deviceId, crew, name, peerId?, subId?, away? } → check-in every 20 s while the radio is on screen;
 //                                                away = true when it leaves. Also tells lock-screen
 //                                                alerts this phone is looking at the radio.
-//                                                Replies { count } = people on that crew now, so the
-//                                                phone can tell if it's missing someone.
+//                                                Replies { count, peers } = people on that crew now and
+//                                                where to reach them, so the phone dials only real phones.
 // GET                                          → { counts: { Beaver: 2, ... }, names: { Beaver: ["Jake", ...] } }
 //
 // No sign-in, so this is public: other websites are refused and Netlify rate-limits each IP.
@@ -42,14 +42,18 @@ async function counts() {
   const { blobs } = await s.list({ prefix: "on/" });
   const out = Object.fromEntries(CREWS.map((c) => [c, 0]));
   const names = Object.fromEntries(CREWS.map((c) => [c, []]));
+  const peers = Object.fromEntries(CREWS.map((c) => [c, []]));
   await Promise.all(blobs.map(async ({ key }) => {
     const p = await s.get(key, { type: "json" });
     if (!p) return;
     if (now - p.t > FORGET_MS) return s.delete(key);
-    if (now - p.t <= ACTIVE_MS && out[p.crew] !== undefined) { out[p.crew]++; names[p.crew].push(p.name); }
+    if (now - p.t <= ACTIVE_MS && out[p.crew] !== undefined) {
+      out[p.crew]++; names[p.crew].push(p.name);
+      if (p.peer) peers[p.crew].push(p.peer);
+    }
   }));
   for (const c of CREWS) names[c].sort((a, b) => a.localeCompare(b));
-  return { counts: out, names };
+  return { counts: out, names, peers };
 }
 
 export default async (req) => {
@@ -67,7 +71,7 @@ export default async (req) => {
       }
       return reply(200, out);
     }
-    if (req.method === "GET") return reply(200, await counts());
+    if (req.method === "GET") { const { counts: c, names } = await counts(); return reply(200, { counts: c, names }); }
     if (req.method !== "POST") return reply(405, { error: "method_not_allowed" });
 
     let body;
@@ -91,11 +95,13 @@ export default async (req) => {
     else {
       if (!CREWS.includes(body.crew)) return reply(400, { error: "bad_request" });
       const name = typeof body.name === "string" ? body.name.trim().slice(0, 20) : "";
-      await s.setJSON(`on/${body.deviceId}`, { crew: body.crew, name: name || "?", t: Date.now() });
+      const peer = typeof body.peerId === "string" && /^allen-field-radio-[a-z0-9-]{1,40}$/.test(body.peerId) ? body.peerId : undefined;
+      await s.setJSON(`on/${body.deviceId}`, { crew: body.crew, name: name || "?", peer, t: Date.now() });
     }
     if (hex(body.subId, 32)) await markSeen(body.subId, body.away === true);
     if (body.away === true) return reply(200, { ok: true });
-    return reply(200, { ok: true, count: (await counts()).counts[body.crew] });
+    const now = await counts();
+    return reply(200, { ok: true, count: now.counts[body.crew], peers: now.peers[body.crew] });
   } catch (err) {
     console.error("presence failed", err?.name);
     return reply(500, { error: "storage" });

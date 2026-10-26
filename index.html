@@ -725,14 +725,29 @@ function claimSlot(n) {
 // Newcomer dials every other slot; existing peers never dial newcomers.
 // A link only becomes the peer's active call/conn once it is live (stream / open), so a
 // dial to an empty slot never blocks someone who claims that slot later.
+// Find the rest of the crew. The check-in reply lists who is on, so only real phones get
+// dialed, a few at a time: dialing every empty slot at once floods the free switchboard and it
+// throws this phone off. If the list can't be had, fall back to trying each slot, spaced out.
 function dialExisting() {
   S.lastFullDial = Date.now();
-  for (let i = 1; i <= CONFIG.maxSlots; i++) if (i !== S.slot) dialOne(slotId(i));
+  markSeen(false, true);
+}
+function dialSlots() {
+  S.lastBlindDial = Date.now();
+  const ids = [];
+  for (let i = 1; i <= CONFIG.maxSlots; i++) if (i !== S.slot) ids.push(slotId(i));
+  dialSpaced(ids, 400);
+}
+function dialSpaced(ids, gap) {
+  ids.forEach((id, i) => setTimeout(() => { if (S.joined && !linkAlive(S.peers.get(id)?.conn)) dialOne(id); }, i * gap));
 }
 
 function dialOne(id) {
   if (!S.peer || S.peer.destroyed || S.peer.disconnected) return;
+  const old = S.peers.get(id);
+  if (old && (old.outCall || old.outConn) && Date.now() - (old.dialAt || 0) > 15000) abandonDial(id); // dial that never got an answer
   const entry = getPeer(id);
+  if (!entry.outCall && !entry.outConn) entry.dialAt = Date.now();
   if (!entry.call && !entry.outCall) {
     entry.outCall = S.peer.call(id, S.outStream, { metadata: { name: S.name, lang: S.lang } });
     entry.outCall._init = S.myId;
@@ -964,12 +979,16 @@ function recoverSignal() {
   }, delay);
 }
 
-// The presence check-in reports how many are on this crew. If that's more than we're linked to,
-// someone is missing: dial the crew again (at most every 20 s).
-function findMissing(count) {
-  if (!S.joined || typeof count !== "number") return;
-  const linked = [...S.peers.values()].filter((p) => p.conn && p.conn.open).length;
-  if (count - 1 > linked && Date.now() - (S.lastFullDial || 0) > 20000) dialExisting();
+// The check-in reply lists who is on this crew. Dial anyone we aren't linked to. Phones still
+// on an older copy of the app don't report where to reach them; for those, try the slots
+// (at most every 30 s).
+function findMissing(d, full) {
+  if (!S.joined) return;
+  if (!d || typeof d.count !== "number") { if (full) dialSlots(); return; }
+  const listed = (Array.isArray(d.peers) ? d.peers : []).filter((id) => id !== S.myId && id.startsWith(slotId("")));
+  dialSpaced(listed.filter((id) => !linkAlive(S.peers.get(id)?.conn)), 300);
+  const unlisted = d.count - 1 - listed.length;
+  if (unlisted > 0 && (full || Date.now() - (S.lastBlindDial || 0) > 30000)) dialSlots();
 }
 
 setInterval(() => {
@@ -1363,12 +1382,12 @@ async function setupAlerts() {
 // Tell the server whether the radio is on screen, so alerts only go to phones that are away.
 // Check in while the radio is on screen: feeds the live crew counts on the start screen and
 // tells lock-screen alerts this phone is already looking at the radio.
-function markSeen(away) {
+function markSeen(away, full) {
   if (!S.channel || (!S.joined && !away)) return;
-  const body = JSON.stringify({ deviceId: S.deviceId, crew: S.channel, name: S.name, subId: S.subId || undefined, away });
+  const body = JSON.stringify({ deviceId: S.deviceId, crew: S.channel, name: S.name, peerId: S.myId || undefined, subId: S.subId || undefined, away });
   if (away && navigator.sendBeacon) navigator.sendBeacon(CONFIG.presenceEndpoint, body);
   else fetch(CONFIG.presenceEndpoint, { method: "POST", headers: { "content-type": "application/json" }, body, keepalive: true })
-    .then((r) => r.json()).then((d) => findMissing(d && d.count)).catch(() => {});
+    .then((r) => r.ok ? r.json() : null).catch(() => null).then((d) => findMissing(d, full));
 }
 
 setInterval(() => { if (S.joined && document.visibilityState === "visible") markSeen(false); }, 20000);
