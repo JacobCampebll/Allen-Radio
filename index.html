@@ -35,6 +35,11 @@
   .led.rx { background: var(--green); box-shadow: 0 0 8px var(--green); }
   .led.tx { background: var(--red); box-shadow: 0 0 8px var(--red); }
   .strip { height: 3px; background: var(--orange); }
+  .connbar { position: sticky; top: 0; z-index: 20; background: #fff7d6; color: #6b5200; border-bottom: 1px solid #f1df9a;
+    font-size: 14px; font-weight: 600; text-align: center; padding: 7px 12px; }
+  .connbar::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #e0a800; margin-right: 8px;
+    vertical-align: 1px; animation: blink 1s ease-in-out infinite alternate; }
+  @keyframes blink { to { opacity: .25; } }
   .wrap { max-width: 520px; margin: 0 auto; padding: 20px 18px 0; }
   .sec { font-size: 11px; font-weight: 700; letter-spacing: .16em; color: #8a9099; text-transform: uppercase; margin: 4px 0 10px; }
 
@@ -133,6 +138,7 @@
 
 <header class="top"><img src="allen-logo-white.png" alt="The Allen Company"><span><i class="led" id="busyLed"></i><span data-i18n="title">Field Radio</span></span></header>
 <div class="strip"></div>
+<div class="connbar hidden" id="connBar"></div>
 
 <!-- ===================== JOIN ===================== -->
 <section id="joinView">
@@ -328,6 +334,7 @@ const STR = {
     alertsOff: "Turn off", alertsFail: "Couldn't turn on alerts. Try again.",
     joinTitle: "Join your crew", joinSub: "Enter your name, then pick your language and crew.",
     onNow: "{n} on",
+    noSignal: "No signal — reconnecting…",
   },
   "es-US": {
     title: "Radio de campo", installTitle: "Instale la app", installBtn: "Instalar",
@@ -353,6 +360,7 @@ const STR = {
     alertsOff: "Desactivar", alertsFail: "No se pudieron activar las alertas. Intente de nuevo.",
     joinTitle: "Únase a su cuadrilla", joinSub: "Escriba su nombre y elija su idioma y cuadrilla.",
     onNow: "{n} en línea",
+    noSignal: "Sin señal — reconectando…",
   },
 };
 
@@ -633,8 +641,9 @@ function claimSlot(n) {
   const peer = new Peer(slotId(n), CONFIG.peerOptions);
   peer.on("open", (id) => {
     S.peer = peer; S.myId = id; S.slot = n; S.joined = true;
+    S.recoverTries = 0;
     setStatus("ON AIR");
-    renderRoster(); renderDiag();
+    renderRoster(); renderDiag(); updateConnBar();
     dialExisting();
   });
   peer.on("error", (err) => {
@@ -645,9 +654,11 @@ function claimSlot(n) {
       if (m) abandonDial(m[1].replace(/[^\w-]/g, ""));
       return;
     }
+    if (["network", "server-error", "socket-error", "socket-closed", "disconnected"].includes(err.type)) { recoverSignal(); return; }
     setStatus(`ERR ${err.type}`.toUpperCase());
   });
-  peer.on("disconnected", () => { if (S.joined && !peer.destroyed) { setStatus("RECONNECTING…"); peer.reconnect(); } });
+  peer.on("disconnected", () => { if (S.joined && !peer.destroyed) recoverSignal(); });
+  peer.on("close", () => { if (S.joined && S.peer === peer) rejoin(); });
   peer.on("call", (call) => onIncomingCall(call));
   peer.on("connection", (conn) => onIncomingConn(conn));
 }
@@ -656,20 +667,22 @@ function claimSlot(n) {
 // A link only becomes the peer's active call/conn once it is live (stream / open), so a
 // dial to an empty slot never blocks someone who claims that slot later.
 function dialExisting() {
-  for (let i = 1; i <= CONFIG.maxSlots; i++) {
-    if (i === S.slot) continue;
-    const id = slotId(i);
-    const entry = getPeer(id);
-    if (!entry.call && !entry.outCall) {
-      entry.outCall = S.peer.call(id, S.outStream, { metadata: { name: S.name, lang: S.lang } });
-      entry.outCall._init = S.myId;
-      wireCall(entry.outCall, id);
-    }
-    if (!entry.conn && !entry.outConn) {
-      entry.outConn = S.peer.connect(id, { reliable: true, metadata: { name: S.name, lang: S.lang } });
-      entry.outConn._init = S.myId;
-      wireConn(entry.outConn, id);
-    }
+  S.lastFullDial = Date.now();
+  for (let i = 1; i <= CONFIG.maxSlots; i++) if (i !== S.slot) dialOne(slotId(i));
+}
+
+function dialOne(id) {
+  if (!S.peer || S.peer.destroyed || S.peer.disconnected) return;
+  const entry = getPeer(id);
+  if (!entry.call && !entry.outCall) {
+    entry.outCall = S.peer.call(id, S.outStream, { metadata: { name: S.name, lang: S.lang } });
+    entry.outCall._init = S.myId;
+    wireCall(entry.outCall, id);
+  }
+  if (!entry.conn && !entry.outConn) {
+    entry.outConn = S.peer.connect(id, { reliable: true, metadata: { name: S.name, lang: S.lang } });
+    entry.outConn._init = S.myId;
+    wireConn(entry.outConn, id);
   }
 }
 
@@ -754,6 +767,7 @@ function wireConn(conn, id) {
   conn.on("open", () => {
     const entry = getPeer(id);
     if (!adopt(entry, "conn", conn)) return;
+    entry.lastHeard = Date.now();
     conn.send({ type: "hello", peerId: S.myId, name: S.name, lang: S.lang });
     renderRoster();
   });
@@ -822,6 +836,57 @@ function resumeRadio() {
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") resumeRadio(); });
 window.addEventListener("pageshow", (e) => { if (e.persisted) resumeRadio(); });
 window.addEventListener("online", resumeRadio);
+
+// Self-healing: every 5 s each phone pings its crew over the direct links. Anyone silent for
+// 15 s is dropped and redialed. If the switchboard drops this phone, keep retrying (2, 4, 8,
+// then every 15 s) and rejoin from scratch if that keeps failing.
+const PING_MS = 5000, DEAD_MS = 15000;
+
+function updateConnBar() {
+  const bar = $("connBar");
+  const trouble = S.joined && (!navigator.onLine || !S.peer || S.peer.destroyed || S.peer.disconnected || S.recovering);
+  const rejoining = !S.joined && !!S.channel && !$("radioView").classList.contains("hidden");
+  bar.classList.toggle("hidden", !(trouble || rejoining));
+  bar.textContent = !navigator.onLine ? t("noSignal") : t("reconnecting");
+}
+
+function recoverSignal() {
+  if (S.recovering || !S.peer) return;
+  S.recovering = true;
+  updateConnBar();
+  const delay = Math.min(2000 * 2 ** (S.recoverTries || 0), 15000);
+  S.recoverTries = (S.recoverTries || 0) + 1;
+  setTimeout(() => {
+    S.recovering = false;
+    if (!S.joined && !S.peer) return updateConnBar();             // user left meanwhile
+    if (!S.peer || S.peer.destroyed || S.recoverTries > 5) { S.recoverTries = 0; rejoin(); return; }
+    if (S.peer.disconnected && navigator.onLine) { try { S.peer.reconnect(); } catch {} }
+    // Check again shortly; "open" resets the count once the switchboard takes us back.
+    setTimeout(() => { if (S.peer && S.peer.disconnected) recoverSignal(); else updateConnBar(); }, 4000);
+  }, delay);
+}
+
+// The presence check-in reports how many are on this crew. If that's more than we're linked to,
+// someone is missing: dial the crew again (at most every 20 s).
+function findMissing(count) {
+  if (!S.joined || typeof count !== "number") return;
+  const linked = [...S.peers.values()].filter((p) => p.conn && p.conn.open).length;
+  if (count - 1 > linked && Date.now() - (S.lastFullDial || 0) > 20000) dialExisting();
+}
+
+setInterval(() => {
+  updateConnBar();
+  if (!S.joined || !S.peer || S.peer.destroyed || document.visibilityState !== "visible") return;
+  if (S.peer.disconnected) { recoverSignal(); return; }
+  const now = Date.now();
+  for (const p of [...S.peers.values()]) {
+    if (!p.conn || !p.conn.open) continue;
+    if (now - (p.lastHeard || now) > DEAD_MS) { const id = p.id; dropPeer(id); dialOne(id); continue; }
+    try { p.conn.send({ type: "ping" }); } catch {}
+  }
+}, PING_MS);
+
+window.addEventListener("offline", updateConnBar);
 
 /* =====================================================================
    TALK (tap to start, tap again to send — names kept from the hold-to-talk version)
@@ -1046,7 +1111,10 @@ async function sendTranscript(raw, releasedAt) {
 function onData(peerId, msg) {
   if (!msg || typeof msg !== "object") return;
   const p = getPeer(peerId);
+  p.lastHeard = Date.now();
   switch (msg.type) {
+    case "ping": try { p.conn && p.conn.open && p.conn.send({ type: "pong" }); } catch {} break;
+    case "pong": break;
     case "hello":
       p.name = clip(msg.name, 20) || p.name;
       p.lang = clip(msg.lang, 16) || p.lang;
@@ -1196,7 +1264,8 @@ function markSeen(away) {
   if (!S.channel || (!S.joined && !away)) return;
   const body = JSON.stringify({ deviceId: S.deviceId, crew: S.channel, name: S.name, subId: S.subId || undefined, away });
   if (away && navigator.sendBeacon) navigator.sendBeacon(CONFIG.presenceEndpoint, body);
-  else fetch(CONFIG.presenceEndpoint, { method: "POST", headers: { "content-type": "application/json" }, body, keepalive: true }).catch(() => {});
+  else fetch(CONFIG.presenceEndpoint, { method: "POST", headers: { "content-type": "application/json" }, body, keepalive: true })
+    .then((r) => r.json()).then((d) => findMissing(d && d.count)).catch(() => {});
 }
 
 setInterval(() => { if (S.joined && document.visibilityState === "visible") markSeen(false); }, 20000);

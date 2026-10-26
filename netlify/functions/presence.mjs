@@ -3,6 +3,8 @@
 // POST { deviceId, crew, name, subId?, away? } → check-in every 20 s while the radio is on screen;
 //                                                away = true when it leaves. Also tells lock-screen
 //                                                alerts this phone is looking at the radio.
+//                                                Replies { count } = people on that crew now, so the
+//                                                phone can tell if it's missing someone.
 // GET                                          → { counts: { Beaver: 2, ... }, names: { Beaver: ["Jake", ...] } }
 //
 // No sign-in, so this is public: other websites are refused and Netlify rate-limits each IP.
@@ -72,7 +74,8 @@ export default async (req) => {
       await s.setJSON(`on/${body.deviceId}`, { crew: body.crew, name: name || "?", t: Date.now() });
     }
     if (hex(body.subId, 32)) await markSeen(body.subId, body.away === true);
-    return reply(200, { ok: true });
+    if (body.away === true) return reply(200, { ok: true });
+    return reply(200, { ok: true, count: (await counts()).counts[body.crew] });
   } catch (err) {
     console.error("presence failed", err?.name);
     return reply(500, { error: "storage" });
