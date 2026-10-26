@@ -684,23 +684,33 @@ function slotId(n) { return `${CONFIG.peerPrefix}-${slug(S.channel)}-${n}`; }
 function claimSlot(n) {
   if (n > CONFIG.maxSlots) { setStatus("CHANNEL FULL"); return; }
   setStatus(`CLAIMING SLOT ${n}…`);
+  if (n === 1) cancelClaim();
   const peer = new Peer(slotId(n), CONFIG.peerOptions);
+  S.claiming = peer;
+  // No answer from the switchboard (bad signal): give up on this try and start over.
+  const stall = setTimeout(() => { if (S.claiming === peer) retryClaim(peer); }, 15000);
   peer.on("open", (id) => {
+    clearTimeout(stall);
+    if (S.claiming !== peer) { peer.destroy(); return; }   // a newer try took over
+    S.claiming = null;
     S.peer = peer; S.myId = id; S.slot = n; S.joined = true;
-    S.recoverTries = 0;
+    S.recoverTries = 0; S.claimTries = 0;
     setStatus("ON AIR");
     renderRoster(); renderDiag(); updateConnBar();
     dialExisting();
   });
   peer.on("error", (err) => {
-    if (err.type === "unavailable-id") { peer.destroy(); claimSlot(n + 1); return; }
+    if (err.type === "unavailable-id") { clearTimeout(stall); peer.destroy(); if (S.claiming === peer) claimSlot(n + 1); return; }
     if (err.type === "peer-unavailable") {
       // Empty slot while dialing — expected. Abandon our pending dial to it.
       const m = /peer\s+(\S+)/i.exec(err.message || "");
       if (m) abandonDial(m[1].replace(/[^\w-]/g, ""));
       return;
     }
-    if (["network", "server-error", "socket-error", "socket-closed", "disconnected"].includes(err.type)) { recoverSignal(); return; }
+    if (["network", "server-error", "socket-error", "socket-closed", "disconnected"].includes(err.type)) {
+      if (S.claiming === peer) { clearTimeout(stall); retryClaim(peer); } else recoverSignal();
+      return;
+    }
     setStatus(`ERR ${err.type}`.toUpperCase());
   });
   peer.on("disconnected", () => { if (S.joined && !peer.destroyed) recoverSignal(); });
@@ -835,6 +845,7 @@ function broadcast(msg) {
 function leaveChannel() {
   markSeen(true);   // off the radio now, so alerts apply
   S.joined = false;
+  cancelClaim();
   for (const id of [...S.peers.keys()]) dropPeer(id);
   if (S.peer) { try { S.peer.destroy(); } catch {} }
   S.peer = null; S.myId = ""; S.slot = 0;
@@ -865,6 +876,8 @@ function rejoin() {
 }
 
 function resumeRadio() {
+  // Still trying to get back on: try again right away instead of waiting out the retry timer.
+  if (!S.joined && !S.peer && S.claiming && !(S.claiming instanceof Peer) && !$("radioView").classList.contains("hidden")) { claimSlot(1); return; }
   if (!S.joined && !S.peer) return;
   keepAwake();
   if (S.micTrack && S.micTrack.readyState === "ended") reacquireMic();
@@ -894,6 +907,24 @@ function updateConnBar() {
   const rejoining = !S.joined && !!S.channel && !$("radioView").classList.contains("hidden");
   bar.classList.toggle("hidden", !(trouble || rejoining));
   bar.textContent = !navigator.onLine ? t("noSignal") : t("reconnecting");
+}
+
+function cancelClaim() {
+  if (S.claiming instanceof Peer) { try { S.claiming.destroy(); } catch {} } else clearTimeout(S.claiming);
+  S.claiming = null;
+}
+
+// Joining failed before the switchboard answered (no signal): try again in 2, 4, 8, then every 15 s.
+function retryClaim(peer) {
+  if (S.claiming !== peer) return;
+  try { peer.destroy(); } catch {}
+  const delay = Math.min(2000 * 2 ** (S.claimTries || 0), 15000);
+  S.claimTries = (S.claimTries || 0) + 1;
+  S.claiming = setTimeout(() => {
+    S.claiming = null;
+    if (!S.joined && !S.peer && !$("radioView").classList.contains("hidden")) claimSlot(1);
+  }, delay);
+  updateConnBar();
 }
 
 function recoverSignal() {
