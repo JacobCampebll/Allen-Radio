@@ -40,6 +40,8 @@
   .connbar::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #e0a800; margin-right: 8px;
     vertical-align: 1px; animation: blink 1s ease-in-out infinite alternate; }
   @keyframes blink { to { opacity: .25; } }
+  .connbar.upd { background: #e8f0fe; color: #1e3a8a; border-bottom-color: #c7d7f5; cursor: pointer; }
+  .connbar.upd::before { background: #2563eb; animation: none; }
   .wrap { max-width: 520px; margin: 0 auto; padding: 20px 18px 0; }
   .sec { font-size: 11px; font-weight: 700; letter-spacing: .16em; color: #8a9099; text-transform: uppercase; margin: 4px 0 10px; }
 
@@ -143,6 +145,7 @@
 <header class="top"><img src="allen-logo-white.png" alt="The Allen Company"><span><i class="led" id="busyLed"></i><span data-i18n="title">Field Radio</span></span></header>
 <div class="strip"></div>
 <div class="connbar hidden" id="connBar"></div>
+<div class="connbar upd hidden" id="updateBar" role="button" data-i18n="updateReady">New version ready. Tap to update.</div>
 
 <!-- ===================== JOIN ===================== -->
 <section id="joinView">
@@ -340,7 +343,7 @@ const STR = {
     cleared: "Chat cleared", clearedBy: "{name} cleared the chat", clearFail: "Screen cleared, but the crew log couldn't be erased.",
     confirmClear: "Clear the chat for everyone on the {crew} crew and erase the crew log? This can't be undone.",
     micBlocked: "Mic blocked — listen-only mode.", sttConflict: "This phone can't caption and transmit at once — switching captions to server mode.",
-    micLost: "Mic lost. Leave and rejoin the channel.", reconnecting: "Reconnecting…", channelFull: "Channel full.", connError: "Connection error: {e}",
+    micLost: "Mic lost. Leave and rejoin the channel.", reconnecting: "Reconnecting…", updateReady: "New version ready. Tap to update.", channelFull: "Channel full.", connError: "Connection error: {e}",
     alertsTitle: "Get alerts when your phone is locked", alertsWhy: "Messages and safety buttons show up as notifications when the radio isn't open.",
     alertsOn: "Turn on alerts", alertsInstall: "First add this app to your Home Screen (Share ⬆︎ → Add to Home Screen), then open it from there.",
     alertsBlocked: "Alerts are blocked. Turn on notifications for Allen Radio in your phone's Settings.", alertsStatusOn: "Lock-screen alerts are on.",
@@ -367,7 +370,7 @@ const STR = {
     cleared: "Chat borrado", clearedBy: "{name} borró el chat", clearFail: "Se borró la pantalla, pero no se pudo borrar el registro.",
     confirmClear: "¿Borrar el chat para toda la cuadrilla {crew} y el registro? No se puede deshacer.",
     micBlocked: "Micrófono bloqueado — solo escuchar.", sttConflict: "Este teléfono no puede transcribir y transmitir a la vez — usando el servidor.",
-    micLost: "Se perdió el micrófono. Salga y vuelva a entrar.", reconnecting: "Reconectando…", channelFull: "Canal lleno.", connError: "Error de conexión: {e}",
+    micLost: "Se perdió el micrófono. Salga y vuelva a entrar.", reconnecting: "Reconectando…", updateReady: "Nueva versión lista. Toque para actualizar.", channelFull: "Canal lleno.", connError: "Error de conexión: {e}",
     alertsTitle: "Reciba alertas con el teléfono bloqueado", alertsWhy: "Los mensajes y botones de seguridad llegan como notificaciones cuando la radio no está abierta.",
     alertsOn: "Activar alertas", alertsInstall: "Primero agregue esta app a su pantalla de inicio (Compartir ⬆︎ → Agregar a inicio) y ábrala desde ahí.",
     alertsBlocked: "Las alertas están bloqueadas. Active las notificaciones de Allen Radio en Ajustes.", alertsStatusOn: "Alertas activadas.",
@@ -1374,7 +1377,34 @@ async function refreshCrewCounts() {
 refreshCrewCounts();
 setInterval(refreshCrewCounts, 10000);
 
-$("changeBtn").addEventListener("click", () => { if (S.transmitting) pttUp(); leaveChannel(); renderLangButtons(); renderCrewButtons(); refreshCrewCounts(); });
+$("changeBtn").addEventListener("click", () => {
+  if (S.transmitting) pttUp();
+  leaveChannel();
+  if (updateReady) { location.reload(); return; }
+  renderLangButtons(); renderCrewButtons(); refreshCrewCounts();
+});
+
+// Auto-update: phones (especially the Home Screen app) can keep an old copy of the radio open
+// for days. Check the page's version tag now and then; on the start screen just reload, on the
+// radio ask first so nobody gets cut off mid-message.
+let pageTag = "", updateReady = false;
+async function checkForUpdate() {
+  if (updateReady || document.visibilityState !== "visible" || !navigator.onLine) return;
+  try {
+    const res = await fetch("/", { method: "HEAD", cache: "no-store" });
+    const tag = res.ok && (res.headers.get("etag") || res.headers.get("last-modified"));
+    if (!tag) return;
+    if (!pageTag) { pageTag = tag; return; }
+    if (tag === pageTag) return;
+    updateReady = true;
+    if (!S.joined && $("radioView").classList.contains("hidden") && document.activeElement !== $("joinName")) location.reload();
+    else $("updateBar").classList.remove("hidden");
+  } catch {}
+}
+$("updateBar").addEventListener("click", () => { if (S.transmitting) pttUp(); leaveChannel(); location.reload(); });
+checkForUpdate();
+setInterval(checkForUpdate, 5 * 60_000);
+document.addEventListener("visibilitychange", checkForUpdate);
 
 // Install as an app: Android shows an Install button; iPhone gets Share → Add to Home Screen steps.
 const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
