@@ -744,6 +744,46 @@ function leaveChannel() {
   show("joinView");
 }
 
+// Coming back to the app (phone unlocked, or switched back from another app): keep the screen
+// awake again and reconnect to anyone lost while away. Existing peers never dial back, so the
+// returning phone does the dialing, the same as a newcomer.
+async function keepAwake() {
+  try { if (navigator.wakeLock && document.visibilityState === "visible") S.wakeLock = await navigator.wakeLock.request("screen"); } catch {}
+}
+
+const linkAlive = (l) => {
+  if (!l || !l.open) return false;
+  const st = l.peerConnection && l.peerConnection.iceConnectionState;
+  return !st || ["new", "checking", "connected", "completed"].includes(st);
+};
+
+function rejoin() {
+  for (const id of [...S.peers.keys()]) dropPeer(id);
+  if (S.peer) { try { S.peer.destroy(); } catch {} }
+  S.peer = null; S.myId = ""; S.slot = 0; S.joined = false;
+  renderRoster();
+  claimSlot(1);
+}
+
+function resumeRadio() {
+  if (!S.joined && !S.peer) return;
+  keepAwake();
+  if (S.micTrack && S.micTrack.readyState === "ended") reacquireMic();
+  if (!S.peer || S.peer.destroyed) { rejoin(); return; }
+  if (S.peer.disconnected) { try { S.peer.reconnect(); } catch {} }
+  setTimeout(() => {
+    if (!S.peer || S.peer.destroyed) return;
+    if (S.peer.disconnected) { rejoin(); return; }
+    // Drop links that died while the phone was asleep, then dial everyone again.
+    for (const p of [...S.peers.values()]) if (!linkAlive(p.conn) || !linkAlive(p.call)) dropPeer(p.id);
+    dialExisting();
+  }, 1500);
+}
+
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") resumeRadio(); });
+window.addEventListener("pageshow", (e) => { if (e.persisted) resumeRadio(); });
+window.addEventListener("online", resumeRadio);
+
 /* =====================================================================
    TALK (tap to start, tap again to send — names kept from the hold-to-talk version)
    ===================================================================== */
@@ -1061,7 +1101,7 @@ $("joinBtn").addEventListener("click", async () => {
   show("radioView");
   renderRoster(); renderDiag();
   claimSlot(1);
-  try { if (navigator.wakeLock) await navigator.wakeLock.request("screen"); } catch {}
+  keepAwake();
 });
 
 $("changeBtn").addEventListener("click", () => { if (S.transmitting) pttUp(); leaveChannel(); renderLangButtons(); renderCrewButtons(); });
