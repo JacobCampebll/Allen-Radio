@@ -125,6 +125,10 @@
   .cap-main .swatch { width: 34px; height: 34px; margin-left: 10px; vertical-align: -6px; }
   .item .swatch { width: 18px; height: 18px; margin-left: 8px; vertical-align: -3px; }
   .carpick .linkbtn { display: block; margin: 8px auto 0; }
+  .makes { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 4px; }
+  .make-btn { padding: 12px 4px; border-radius: 10px; border: 1px solid var(--line); background: #fff; font: 700 15px "Source Sans 3", system-ui; color: var(--ink); }
+  .skipbtn { width: 100%; margin-top: 10px; padding: 12px; border-radius: 10px; border: 1px dashed #c7cbd1; background: #f8f9fa;
+    font: 700 15px "Source Sans 3", system-ui; color: var(--ink); }
   .sec-row { display: flex; justify-content: space-between; align-items: center; margin: 6px 0 8px; }
   .sec-row .sec { margin: 0; }
   .clearbtn { background: #fff; border: 1px solid #f1b5b5; color: var(--red); border-radius: 10px; padding: 6px 10px; font: 700 13px "Source Sans 3", system-ui; }
@@ -177,8 +181,15 @@
       <div class="sec" data-i18n="safety">Safety</div>
       <div class="presets" id="presets"></div>
       <div class="carpick hidden" id="carPick">
-        <div class="sec" data-i18n="carColor">Last car color</div>
-        <div class="swatches" id="swatches"></div>
+        <div id="carStepColor">
+          <div class="sec" data-i18n="carColor">Last car color</div>
+          <div class="swatches" id="swatches"></div>
+        </div>
+        <div id="carStepMake" class="hidden">
+          <div class="sec"><span data-i18n="carMake">Make (optional)</span> · <span id="carChosen"></span></div>
+          <div class="makes" id="makes"></div>
+          <button class="skipbtn" id="carSkip" data-i18n="carSkip">Skip — send without make</button>
+        </div>
         <button class="linkbtn" id="carCancel" data-i18n="cancel">Cancel</button>
       </div>
       <div class="preset-note hidden" id="presetNote"><i></i> <span data-i18n="unchecked">Spanish wording not yet checked</span></div>
@@ -247,9 +258,9 @@ const CONFIG = {
   presets: [
     { key: "STOP", es: "ALTO", icon: "✋", color: "#c8102e", alarm: true, wide: true, verified: false,
       text: { "en-US": "Stop! Stop now!", "es-US": "¡Alto! ¡Deténgase ya!" } },
-    // Pick the car's color first; {color} is filled in for each listener's language.
+    // Pick the car's color, then optionally its make; both are filled in for each listener's language.
     { key: "LAST CAR", es: "ÚLTIMO CARRO", icon: "🚗", color: "#334155", pickColor: true, verified: false,
-      text: { "en-US": "Last car: {color}.", "es-US": "Último carro: {color}." } },
+      text: { "en-US": "Last car: {color}{ make}.", "es-US": "Último carro: {make }{color}." } },
     { key: "ALL CLEAR", es: "TODO LIBRE", icon: "✅", color: "#15803d", verified: false,
       text: { "en-US": "All clear.", "es-US": "Todo libre." } },
     { key: "EMERGENCY", es: "EMERGENCIA", icon: "🚨", color: "#7f1d1d", alarm: true, wide: true, verified: false,
@@ -266,6 +277,8 @@ const CONFIG = {
     { key: "yellow", en: "yellow", es: "amarillo", hex: "#facc15" },
     { key: "brown",  en: "brown",  es: "café",     hex: "#8b5a2b" },
   ],
+
+  carMakes: ["Ford", "Chevy", "Ram", "GMC", "Toyota", "Honda", "Nissan", "Jeep", "Hyundai", "Kia", "Subaru", "Dodge"],
 
   captionLogSize: 10,
 };
@@ -335,6 +348,7 @@ const STR = {
     joinTitle: "Join your crew", joinSub: "Enter your name, then pick your language and crew.",
     onNow: "{n} on",
     noSignal: "No signal — reconnecting…",
+    carMake: "Make (optional)", carSkip: "Skip — send without make",
   },
   "es-US": {
     title: "Radio de campo", installTitle: "Instale la app", installBtn: "Instalar",
@@ -361,6 +375,7 @@ const STR = {
     joinTitle: "Únase a su cuadrilla", joinSub: "Escriba su nombre y elija su idioma y cuadrilla.",
     onNow: "{n} en línea",
     noSignal: "Sin señal — reconectando…",
+    carMake: "Marca (opcional)", carSkip: "Omitir — enviar sin marca",
   },
 };
 
@@ -498,12 +513,40 @@ function renderPresets() {
     b.className = "swatch-btn";
     const nm = S.lang === "es-US" ? c.es : c.en;
     b.innerHTML = `<i style="background:${c.hex}"></i>${esc(nm[0].toUpperCase() + nm.slice(1))}`;
-    b.addEventListener("click", () => { $("carPick").classList.add("hidden"); sendPreset("LAST CAR", c.key); });
+    b.addEventListener("click", () => chooseCarColor(c.key));
     sw.appendChild(b);
+  }
+  const mk = $("makes");
+  mk.innerHTML = "";
+  for (const m of CONFIG.carMakes) {
+    const b = document.createElement("button");
+    b.className = "make-btn";
+    b.textContent = m;
+    b.addEventListener("click", () => sendLastCar(m));
+    mk.appendChild(b);
   }
 }
 
-function toggleCarPick() { $("carPick").classList.toggle("hidden"); }
+// Last car: step 1 color, step 2 make (optional), then send.
+function showCarStep(step) {
+  $("carStepColor").classList.toggle("hidden", step !== "color");
+  $("carStepMake").classList.toggle("hidden", step !== "make");
+}
+function toggleCarPick() {
+  S.carColor = "";
+  showCarStep("color");
+  $("carPick").classList.toggle("hidden");
+}
+function chooseCarColor(key) {
+  S.carColor = key;
+  const c = carColor(key);
+  $("carChosen").textContent = S.lang === "es-US" ? c.es : c.en;
+  showCarStep("make");
+}
+function sendLastCar(make) {
+  $("carPick").classList.add("hidden");
+  sendPreset("LAST CAR", S.carColor, make);
+}
 
 function renderDiag() {
   const parts = [
@@ -1163,25 +1206,30 @@ const PRESET_ICONS = {
 };
 const iconEl = (key) => { const i = document.createElement("span"); i.className = "pi"; i.innerHTML = PRESET_ICONS[key] || ""; return i; };
 
-function presetText(p, lang, colorKey) {
+const carMake = (m) => (CONFIG.carMakes.includes(m) ? m : "");
+
+function presetText(p, lang, colorKey, make) {
   const line = p.text[lang] || p.text["en-US"] || p.key;
   const c = carColor(colorKey);
-  return line.replace("{color}", c ? (lang === "es-US" ? c.es : c.en) : "?");
+  const m = carMake(make);
+  return line.replace("{color}", c ? (lang === "es-US" ? c.es : c.en) : "?")
+    .replace("{ make}", m ? ` ${m}` : "").replace("{make }", m ? `${m} ` : "");
 }
 
-function sendPreset(key, colorKey) {
+function sendPreset(key, colorKey, makeName) {
   const p = presetByKey(key);
   if (!p) return;
   const color = p.pickColor && carColor(colorKey) ? colorKey : undefined;
+  const make = p.pickColor ? carMake(makeName) || undefined : undefined;
   ensureAudioCtx();
   const id = uid();
-  broadcast({ type: "preset", id, from: S.name, key, color, ts: Date.now() });
+  broadcast({ type: "preset", id, from: S.name, key, color, make, ts: Date.now() });
   const other = S.lang === "es-US" ? "en-US" : "es-US";
-  saveToLog({ id, kind: "safety", text: presetText(p, S.lang, color), translations: { [other]: presetText(p, other, color) }, failed: false,
+  saveToLog({ id, kind: "safety", text: presetText(p, S.lang, color, make), translations: { [other]: presetText(p, other, color, make) }, failed: false,
     alert: { "en-US": `${p.icon} ${p.key}`, "es-US": `${p.icon} ${p.es}` }, urgent: !!p.alarm });
   attentionTone(p.alarm);
   if (p.alarm) flashLcd();
-  const cap = { who: t("youSent"), main: presetText(p, S.lang, color), icon: p.key, sub: presetLabel(p), alarm: p.alarm,
+  const cap = { who: t("youSent"), main: presetText(p, S.lang, color, make), icon: p.key, sub: presetLabel(p), alarm: p.alarm,
     swatch: color ? carColor(color).hex : "" };
   setCaption(cap);
   addLog(cap);
@@ -1195,7 +1243,7 @@ function onPreset(peer, msg) {
   if (p.alarm) flashLcd();
   if (navigator.vibrate) navigator.vibrate(p.alarm ? [400, 150, 400, 150, 400] : [150]);
   const color = p.pickColor && carColor(msg.color) ? msg.color : undefined;
-  const line = presetText(p, S.lang, color);
+  const line = presetText(p, S.lang, color, msg.make);
   const cap = { who: clip(msg.from, 20) || peer.name, main: line, icon: p.key, sub: presetLabel(p), alarm: p.alarm,
     badge: p.verified ? "" : t("unverified"), swatch: color ? carColor(color).hex : "" };
   setCaption(cap);
@@ -1354,6 +1402,7 @@ $("installClose").addEventListener("click", () => { store.set("installTipClosed"
 if (IS_IOS) showInstallTip("installIOS", false);
 
 $("carCancel").addEventListener("click", () => $("carPick").classList.add("hidden"));
+$("carSkip").addEventListener("click", () => sendLastCar(""));
 
 // Clear chat: wipes the chat on every phone in the crew and erases the crew's saved 24-hour log.
 function clearScreen() {
